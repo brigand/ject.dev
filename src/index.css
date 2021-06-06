@@ -1,0 +1,21 @@
+:root {
+  --ij-bg: #23262e;
+  --ij-fg: #d5ced9;
+}
+
+html {
+  font-size: 16px;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  /* https://github.com/EliverLara/Andromeda/blob/master/themes/Andromeda-color-theme.json#L66-L67 */
+  background: var(--ij-bg);
+  color: var(--ij-fg);
+}
