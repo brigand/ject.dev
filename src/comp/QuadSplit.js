@@ -2,13 +2,15 @@ import React, { useState } from 'react';
 import styled from '@emotion/styled';
 import { Col, Row } from './Flex';
 
-const splitBasis = (percent) => {
-  const SCALE = 10000;
-  const p = Math.floor(percent * SCALE);
-  const shared = { flexShrink: 1 };
+const splitBasis = (percent, vertical) => {
+  const shared = { flexShrink: 1000 };
+  const prop = vertical ? 'width' : 'height';
+
+  const toSize = (p2) => `calc(${p2 * 100}% - 1px)`;
+
   return {
-    a: { flexGrow: String(p), ...shared },
-    b: { flexGrow: String(SCALE - p), ...shared },
+    a: { [prop]: toSize(percent), ...shared },
+    b: { [prop]: toSize(1 - percent), ...shared },
   };
 };
 
@@ -25,10 +27,11 @@ const DividerX = styled.button`
   bottom: 0;
   left: calc(${(props) => props.percent * 100}% - var(--quad-split-divider) / 2);
   width: var(--quad-split-divider);
-  background: blue;
+  background: transparent;
+  /* background: blue; */
 
   &:hover {
-    background: white;
+    background: rgba(255, 255, 255, 0.5);
   }
 `;
 
@@ -41,10 +44,11 @@ const DividerY = styled.button`
   left: 0;
   right: 0;
   height: var(--quad-split-divider);
-  background: red;
+  background: transparent;
+  /* background: red; */
 
   &:hover {
-    background: white;
+    background: rgba(255, 255, 255, 0.5);
   }
 `;
 
@@ -109,13 +113,13 @@ function useSplit({ ident, vertical, initial, sizing, setSizing }) {
 
   return {
     value: percent,
-    basis: splitBasis(percent),
+    basis: splitBasis(percent, vertical),
     set: setPercent,
     sizing,
     setSizing,
     divider: (
       <Divider
-        vertical={ident === 'x'}
+        vertical={vertical}
         percent={percent}
         isSizing={sizing === ident}
         onPress={() => {
@@ -137,21 +141,21 @@ function useSplits() {
 
   const x = useSplit({
     ident: 'x',
-    vertical: false,
+    vertical: true,
     initial: 0.5,
     sizing,
     setSizing,
   });
   const y1 = useSplit({
     ident: 'y1',
-    vertical: true,
+    vertical: false,
     initial: 0.5,
     sizing,
     setSizing,
   });
   const y2 = useSplit({
     ident: 'y2',
-    vertical: true,
+    vertical: false,
     initial: 0.5,
     sizing,
     setSizing,
