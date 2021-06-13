@@ -182,17 +182,27 @@ const QuadBox = styled(Row)`
 
 function QuadSplit(props) {
   const splits = useSplits();
+  const { children } = props;
+
+  if (!Array.isArray(children)) {
+    throw new Error(`QuadSplit: Expected props.children to be an array`);
+  }
+  if (children.length !== 4) {
+    throw new Error(
+      `QuadSplit: Expected props.children.length to be 4 but got ${props.children.length}`,
+    );
+  }
 
   return (
     <QuadBox horizontal="stretch">
       <Col2 style={splits.x.basis.a}>
-        <Cell style={splits.y1.basis.a}>C1</Cell>
-        <Cell style={splits.y1.basis.b}>C2</Cell>
+        <Cell style={splits.y1.basis.a}>{children[0]}</Cell>
+        <Cell style={splits.y1.basis.b}>{children[1]}</Cell>
         {splits.y1.divider}
       </Col2>
       <Col2 style={splits.x.basis.b}>
-        <Cell style={splits.y2.basis.a}>C3</Cell>
-        <Cell style={splits.y2.basis.b}>C4</Cell>
+        <Cell style={splits.y2.basis.a}>{children[2]}</Cell>
+        <Cell style={splits.y2.basis.b}>{children[3]}</Cell>
 
         {splits.y2.divider}
       </Col2>
