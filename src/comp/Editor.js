@@ -47,7 +47,11 @@ function Editor(props) {
     }
 
     const ed = monaco.editor.create(containerRef.current, {
-      value: "function hello() {\n\talert('Hello world!');\n}",
+      value: `// This is an example
+const f = () => location.href.toLowerCase();
+console.log(f());
+const div = <div className={css.foo}>Hello, world!</div>;
+`,
       language: 'javascript',
       theme: 'andromeda',
       fontSize: '16px',

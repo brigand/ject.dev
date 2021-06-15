@@ -7,6 +7,13 @@ const DEST = 'src/theme/andromeda-monaco.json';
 
 const theme = JSON.parse(fs.readFileSync(SOURCE));
 
+{
+  // Let's make comments more readable
+  const comment = theme.tokenColors.find((x) => x.name === 'Comment color');
+  const source = theme.tokenColors.find((x) => x.name === 'Yellow');
+  comment.settings.foreground = source.settings.foreground;
+}
+
 const rules = JSON.parse(
   JSON.stringify(
     theme.tokenColors
