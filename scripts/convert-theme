@@ -1,0 +1,32 @@
+#!/usr/bin/env node
+
+const fs = require('fs');
+
+const SOURCE = 'src/theme/andromeda-vscode.json';
+const DEST = 'src/theme/andromeda-monaco.json';
+
+const theme = JSON.parse(fs.readFileSync(SOURCE));
+
+const rules = JSON.parse(
+  JSON.stringify(
+    theme.tokenColors
+      .map((item) =>
+        [].concat(item.scope).map((scope) => ({
+          token: scope || '',
+          ...item.settings,
+        })),
+      )
+      .reduce((p, c) => [...p, ...c], []),
+  ).replace(/#/g, ''),
+);
+
+console.log(`Writing to ${DEST}`);
+fs.writeFileSync(
+  DEST,
+  JSON.stringify({
+    base: 'vs-dark',
+    inherit: true,
+    rules,
+    colors: theme.colors,
+  }),
+);

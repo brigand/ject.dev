@@ -1,35 +1,58 @@
 import React from 'react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.main.js';
+import styled from '@emotion/styled';
+import andromeda from '../theme/andromeda-monaco.json';
 
-let promise = null;
+const Root = styled.div`
+  height: 100%;
+`;
+
+const Inner = styled.div`
+  height: 100%;
+`;
+
+// let promise = null;
 // let monaco = null;
 
 self.MonacoEnvironment = {
   getWorkerUrl: function (moduleId, label) {
     if (label === 'json') {
-      return './json.worker.js';
+      return './json.worker.bundle.js';
     }
     if (label === 'css' || label === 'scss' || label === 'less') {
-      return './css.worker.js';
+      return './css.worker.bundle.js';
     }
     if (label === 'html' || label === 'handlebars' || label === 'razor') {
-      return './html.worker.js';
+      return './html.worker.bundle.js';
     }
     if (label === 'typescript' || label === 'javascript') {
-      return './ts.worker.js';
+      return './ts.worker.bundle.js';
     }
-    return './editor.worker.js';
+    return './editor.worker.bundle.js';
   },
 };
+
+let registeredTheme = false;
 
 function Editor(props) {
   const editorRef = React.useRef();
   const [editor, setEditor] = React.useState(null);
 
   const init = () => {
+    if (!registeredTheme) {
+      monaco.editor.defineTheme('andromeda', andromeda);
+      registeredTheme = true;
+    }
+
     monaco.editor.create(editorRef.current, {
       value: "function hello() {\n\talert('Hello world!');\n}",
       language: 'javascript',
+      theme: 'andromeda',
+      fontSize: '16px',
+      scrollBeyondLastLine: false,
+      minimap: {
+        enabled: false,
+      },
     });
   };
 
@@ -38,10 +61,10 @@ function Editor(props) {
       init();
     } else {
       if (!promise) {
-        promise = import('monaco-editor/esm/vs/editor/editor.main.js').then((mod) => {
-          // promise = import('monaco-editor/dev/vs/editor/editor.main.js').then((mod) => {
-          // monaco = { ...mod };
-        });
+        // promise = import('monaco-editor/esm/vs/editor/editor.main.js').then((mod) => {
+        // promise = import('monaco-editor/dev/vs/editor/editor.main.js').then((mod) => {
+        // monaco = { ...mod };
+        // });
       }
 
       promise.then(init);
@@ -49,9 +72,9 @@ function Editor(props) {
   }, []);
 
   return (
-    <div>
-      <div ref={editorRef} />
-    </div>
+    <Root>
+      <Inner ref={editorRef} />
+    </Root>
   );
 }
 

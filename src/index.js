@@ -10,9 +10,9 @@ function App() {
   return (
     <QuadSplit>
       <div>html</div>
-      <div>
+      <>
         <Editor />
-      </div>
+      </>
       <div>css</div>
       <div>output</div>
     </QuadSplit>
