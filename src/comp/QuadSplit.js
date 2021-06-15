@@ -136,7 +136,7 @@ function useSplit({ ident, vertical, initial, sizing, setSizing }) {
   };
 }
 
-function useSplits() {
+function useSplits(resize) {
   const [sizing, setSizing] = useState(null);
 
   const x = useSplit({
@@ -161,6 +161,18 @@ function useSplits() {
     setSizing,
   });
 
+  const queued = React.useRef(false);
+  React.useEffect(() => {
+    if (!queued.current) {
+      queued.current = true;
+
+      requestAnimationFrame(() => {
+        queued.current = false;
+        resize.emit();
+      });
+    }
+  }, sizing);
+
   return { x, y1, y2 };
 }
 
@@ -181,7 +193,7 @@ const QuadBox = styled(Row)`
 `;
 
 function QuadSplit(props) {
-  const splits = useSplits();
+  const splits = useSplits(props.resize);
   const { children } = props;
 
   if (!Array.isArray(children)) {

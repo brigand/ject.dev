@@ -34,9 +34,11 @@ self.MonacoEnvironment = {
 
 let registeredTheme = false;
 
+function useResize(resize, editorRef) {}
+
 function Editor(props) {
+  const containerRef = React.useRef();
   const editorRef = React.useRef();
-  const [editor, setEditor] = React.useState(null);
 
   const init = () => {
     if (!registeredTheme) {
@@ -44,7 +46,7 @@ function Editor(props) {
       registeredTheme = true;
     }
 
-    monaco.editor.create(editorRef.current, {
+    const ed = monaco.editor.create(containerRef.current, {
       value: "function hello() {\n\talert('Hello world!');\n}",
       language: 'javascript',
       theme: 'andromeda',
@@ -54,7 +56,15 @@ function Editor(props) {
         enabled: false,
       },
     });
+
+    editorRef.current = ed;
   };
+
+  props.resize.use(() => {
+    if (editorRef.current) {
+      editorRef.current.layout();
+    }
+  });
 
   React.useEffect(() => {
     if (monaco) {
@@ -73,7 +83,7 @@ function Editor(props) {
 
   return (
     <Root>
-      <Inner ref={editorRef} />
+      <Inner ref={containerRef} />
     </Root>
   );
 }
