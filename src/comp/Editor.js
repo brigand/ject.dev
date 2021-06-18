@@ -47,18 +47,26 @@ function Editor(props) {
     }
 
     const ed = monaco.editor.create(containerRef.current, {
-      value: `// This is an example
-const f = () => location.href.toLowerCase();
-console.log(f());
-const div = <div className={css.foo}>Hello, world!</div>;
-`,
-      language: 'javascript',
+      value: props.value.current,
+      language: props.language,
       theme: 'andromeda',
-      fontSize: '16px',
+      fontSize: 16,
       scrollBeyondLastLine: false,
       minimap: {
         enabled: false,
       },
+      cursorBlinking: 'solid',
+      cursorSurroundingLines: 10,
+      formatOnPaste: true,
+      padding: {
+        top: 8,
+        bottom: 8,
+      },
+    });
+
+    ed.onDidChangeModelContent(() => {
+      const value = ed.getModel().getValue();
+      props.onChange(value);
     });
 
     editorRef.current = ed;
