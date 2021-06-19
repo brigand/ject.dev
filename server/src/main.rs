@@ -4,7 +4,7 @@ mod state;
 use crate::state::State;
 use actix_web::{
     client::{self, SendRequestError},
-    get, App, HttpRequest, HttpResponse, HttpServer, Responder,
+    get, App, HttpMessage, HttpRequest, HttpResponse, HttpServer, Responder,
 };
 
 #[get("/")]
@@ -33,17 +33,30 @@ async fn r_index() -> impl Responder {
 
 #[get("/dist/{tail:.*}")]
 async fn r_dist(req: HttpRequest) -> Result<HttpResponse, SendRequestError> {
-    let path = req.match_info().get("tail").unwrap_or("");
     let client = client::Client::default();
-    let url = format!("http://localhost:1800/{}", path);
-    let remote = client.get(&url).send().await?;
 
-    let mut res = HttpResponse::build(remote.status());
-    for (key, value) in remote.headers() {
+    // Send a request to the webpack server
+    let path = req.match_info().get("tail").unwrap_or("");
+    let url = format!("http://localhost:1800/{}", path);
+
+    // It actually seems to be about twice as slow if we enable compression, so disabled currently.
+    // let wp_req = client.get(&url);
+    // if let Some(accept_encoding) = req.headers().get("accept-encoding") {
+    //     wp_req = wp_req.set_header("accept-encoding", accept_encoding.clone());
+    // }
+    // let wp_res = wp_req.send().await?;
+
+    let wp_res = client.get(&url).send().await?;
+
+    let mut res = HttpResponse::build(wp_res.status());
+    for (key, value) in wp_res.headers() {
+        if key.as_str().eq_ignore_ascii_case("transfer-encoding") {
+            continue;
+        }
+
         res.header(key, value.clone());
     }
-
-    Ok(res.streaming(remote))
+    Ok(res.streaming(wp_res))
 }
 
 #[actix_web::main]

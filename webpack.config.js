@@ -18,12 +18,7 @@ module.exports = {
   },
   devServer: {
     // contentBase: './dist',
-    before(app, server, compiler) {
-      app.use((req, res, next) => {
-        res.setHeader('access-control-allow-origin', '*');
-        next();
-      });
-    },
+    compress: true,
   },
   plugins: [
     new HtmlWebpackPlugin({
