@@ -1,6 +1,8 @@
 mod api;
 mod state;
 
+use std::sync::Arc;
+
 use crate::state::State;
 use actix_web::{
     client::{self, SendRequestError},
@@ -61,7 +63,7 @@ async fn r_dist(req: HttpRequest) -> Result<HttpResponse, SendRequestError> {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    let state: State = State::default();
+    let state = Arc::new(State::default());
 
     let bind = "0.0.0.0:1950";
     println!("Starting server on {}", bind);
