@@ -9,15 +9,6 @@ use actix_web::{
 
 #[get("/")]
 async fn r_index() -> impl Responder {
-    // Appears to work without these, despite html-webpack-plugin including them
-    let _removed = r#"
-    <script defer src="/dist/editor.worker.bundle.js"></script>
-    <script defer src="/dist/json.worker.bundle.js"></script>
-    <script defer src="/dist/css.worker.bundle.js"></script>
-    <script defer src="/dist/html.worker.bundle.js"></script>
-    <script defer src="/dist/ts.worker.bundle.js"></script>
-    "#;
-
     let html = r#"<!DOCTYPE html>
 <html>
     <head>
