@@ -1,7 +1,9 @@
 import React from 'react';
 
 export class EventType {
-  listeners = new Set();
+  constructor() {
+    this.listeners = new Set();
+  }
 
   emit(data) {
     this.listeners.forEach((listener) => {
