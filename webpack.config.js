@@ -17,7 +17,13 @@ module.exports = {
     path: path.resolve(__dirname, 'dist'),
   },
   devServer: {
-    contentBase: './dist',
+    // contentBase: './dist',
+    before(app, server, compiler) {
+      app.use((req, res, next) => {
+        res.setHeader('access-control-allow-origin', '*');
+        next();
+      });
+    },
   },
   plugins: [
     new HtmlWebpackPlugin({
