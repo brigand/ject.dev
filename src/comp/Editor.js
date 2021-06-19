@@ -1,4 +1,5 @@
 import React from 'react';
+
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.main.js';
 import styled from '@emotion/styled';
 import andromeda from '../theme/andromeda-monaco.json';
@@ -14,21 +15,24 @@ const Inner = styled.div`
 // let promise = null;
 // let monaco = null;
 
+const join = (a, b) => a.replace(/[/]$/, '') + '/' + b.replace(/^\.?\// < '');
+const pub = (path) => join(__webpack_public_path__, path);
+
 self.MonacoEnvironment = {
   getWorkerUrl: function (moduleId, label) {
     if (label === 'json') {
-      return './json.worker.bundle.js';
+      return pub('./json.worker.bundle.js');
     }
     if (label === 'css' || label === 'scss' || label === 'less') {
-      return './css.worker.bundle.js';
+      return pub('./css.worker.bundle.js');
     }
     if (label === 'html' || label === 'handlebars' || label === 'razor') {
-      return './html.worker.bundle.js';
+      return pub('./html.worker.bundle.js');
     }
     if (label === 'typescript' || label === 'javascript') {
-      return './ts.worker.bundle.js';
+      return pub('./ts.worker.bundle.js');
     }
-    return './editor.worker.bundle.js';
+    return pub('./editor.worker.bundle.js');
   },
 };
 
