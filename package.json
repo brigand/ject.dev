@@ -16,7 +16,8 @@
     "monaco-editor": "^0.25.0",
     "normalize.css": "^8.0.1",
     "react": "^17.0.0",
-    "react-dom": "^17.0.0"
+    "react-dom": "^17.0.0",
+    "react-use": "^17.2.4"
   },
   "devDependencies": {
     "@swc/core": "^1.2.60",

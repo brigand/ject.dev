@@ -9,7 +9,7 @@ use serde_json::json;
 #[get("/health")]
 async fn r_health() -> impl Responder {
     HttpResponse::Ok()
-        .header("content-type", "text/plain")
+        .header("content-type", "text/plain; charset=utf-8")
         .body("Ok")
 }
 
@@ -76,13 +76,13 @@ async fn r_get_session_page_js(
         Some(session) => session,
         None => {
             return HttpResponse::NotFound()
-                .header("content-type", "text/html")
+                .header("content-type", "text/html; charset=utf-8")
                 .body("<h2>Unknown session or file</h2><p>Please try reloading the page</p>")
         }
     };
 
     HttpResponse::Ok()
-        .header("content-type", "application/javascript")
+        .header("content-type", "application/javascript; charset=utf-8")
         .body(js_file.contents)
 }
 
@@ -98,14 +98,14 @@ async fn r_get_session_page(
             Some(session) => session,
             None => {
                 return HttpResponse::NotFound()
-                    .header("content-type", "text/html")
+                    .header("content-type", "text/html; charset=utf-8")
                     .body("<h2>Unknown session</h2><p>Please try reloading the page</p>")
             }
         };
 
         match session.file(FileKind::Html) {
             Some(html) => html.clone(),
-            None => return HttpResponse::UnprocessableEntity().header("content-type", "text/html").body("<h2>No HTML file found</h2><p>The session appears to be missing an essential file</p>")
+            None => return HttpResponse::UnprocessableEntity().header("content-type", "text/html; charset=utf-8").body("<h2>No HTML file found</h2><p>The session appears to be missing an essential file</p>")
         }
     };
 
@@ -113,7 +113,7 @@ async fn r_get_session_page(
         Ok(parts) => parts,
         Err(err) => {
             return HttpResponse::UnprocessableEntity()
-                .header("content-type", "text/plain")
+                .header("content-type", "text/plain; charset=utf-8")
                 .body(format!("Invalid HTML Provided\n\nReason:\n{}", err));
         }
     };
@@ -142,10 +142,10 @@ async fn r_get_session_page(
 
     match html {
         Ok(html) => HttpResponse::Ok()
-            .header("content-type", "text/html")
+            .header("content-type", "text/html; charset=utf-8")
             .body(html),
         Err(err) => HttpResponse::UnprocessableEntity()
-            .header("content-type", "text/plain")
+            .header("content-type", "text/plain; charset=utf-8")
             .body(format!(
                 "Unable to generate html for the page\n\nReason:\n{}",
                 err
