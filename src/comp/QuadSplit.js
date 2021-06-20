@@ -206,7 +206,15 @@ function QuadSplit(props) {
   }
 
   return (
-    <QuadBox horizontal="stretch">
+    <QuadBox
+      horizontal="stretch"
+      onKeyPress={(event) => {
+        const ctrl = event.ctrlKey || event.metaKey;
+        if (ctrl && event.key === 'Enter' && props.onSubmit) {
+          props.onSubmit();
+        }
+      }}
+    >
       <Col2 style={splits.x.basis.a}>
         <Cell style={splits.y1.basis.a}>{children[0]}</Cell>
         <Cell style={splits.y1.basis.b}>{children[1]}</Cell>

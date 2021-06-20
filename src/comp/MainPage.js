@@ -3,7 +3,7 @@ import Editor from './Editor';
 import QuadSplit from './QuadSplit';
 import PageFrame from './PageFrame';
 import { EventType } from '../EventType';
-import { useAsync, useWindowSize } from 'react-use';
+import { useAsync } from 'react-use';
 import * as api from '../api';
 
 function defaultFiles() {
@@ -12,9 +12,6 @@ function defaultFiles() {
       kind: 'JavaScript',
       version: 1,
       contents: `// This is an example
-// const f = () => location.href.toLowerCase();
-// console.log(f());
-// const div = <div className={css.foo}>Hello, world!</div>;
 document.querySelector('#root').textContent = 'Greetings';
 console.log('Updated div');
 `,
@@ -40,7 +37,10 @@ console.log('Updated div');
     {
       kind: 'Css',
       version: 1,
-      contents: '',
+      contents: `html {
+  background: #23262e;
+  color: #d5ced9;
+}`,
     },
   ];
 }
@@ -48,7 +48,7 @@ console.log('Updated div');
 function MainPage() {
   const [resize] = React.useState(() => new EventType());
   const session = React.useRef({ files: defaultFiles() });
-  useWindowSize();
+  const [submitCount, setSubmitCount] = React.useState(1);
 
   const createSession = useAsync(async () => {
     const { session_id } = await api.createSession(session.current);
@@ -56,9 +56,16 @@ function MainPage() {
   }, []);
 
   return (
-    <QuadSplit resize={resize}>
+    <QuadSplit
+      resize={resize}
+      onSubmit={() => {
+        api.updateSession(createSession.value, session.current).then(() => {
+          setSubmitCount((c) => c + 1);
+        });
+      }}
+    >
       <>
-        {'value:' + createSession.value}
+        {/* {'value:' + createSession.value} */}
         <Editor
           resize={resize}
           language="html"
@@ -89,14 +96,33 @@ function MainPage() {
           value={session.current.files.find((file) => file.kind === 'JavaScript')}
         />
       </>
-      <div>css</div>
+      <>
+        {/* {'value:' + createSession.value} */}
+        <Editor
+          resize={resize}
+          language="css"
+          onChange={(value) => {
+            session.current = {
+              ...session.current,
+              files: session.current.files.map((file) =>
+                file.kind === 'Css' ? { ...file, contents: value } : file,
+              ),
+            };
+          }}
+          value={session.current.files.find((file) => file.kind === 'Css')}
+        />
+      </>
       <>
         {createSession.loading ? (
           'Creating Session'
         ) : createSession.error ? (
           'Failed to create session'
         ) : createSession.value ? (
-          <PageFrame sessionId={createSession.value} resize={resize} />
+          <PageFrame
+            sessionId={createSession.value}
+            resize={resize}
+            key={submitCount}
+          />
         ) : (
           'Unexpected state. Report a bug.'
         )}

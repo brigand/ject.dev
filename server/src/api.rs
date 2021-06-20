@@ -86,6 +86,30 @@ async fn r_get_session_page_js(
         .body(js_file.contents)
 }
 
+#[get("/session/{session_id}/page.css")]
+async fn r_get_session_page_css(
+    info: web::Path<(String,)>,
+    state: web::Data<Arc<State>>,
+) -> impl Responder {
+    let session_id = info.0 .0;
+    let css_file = match state
+        .sessions()
+        .get(&session_id)
+        .and_then(|session| session.file(FileKind::Css).cloned())
+    {
+        Some(session) => session,
+        None => {
+            return HttpResponse::NotFound()
+                .header("content-type", "text/html; charset=utf-8")
+                .body("<h2>Unknown session or file</h2><p>Please try reloading the page</p>")
+        }
+    };
+
+    HttpResponse::Ok()
+        .header("content-type", "text/css; charset=utf-8")
+        .body(css_file.contents)
+}
+
 #[get("/session/{session_id}/page")]
 async fn r_get_session_page(
     info: web::Path<(String,)>,
@@ -159,5 +183,6 @@ pub fn service() -> Scope {
         .service(r_post_session_new)
         .service(r_put_session)
         .service(r_get_session_page_js)
+        .service(r_get_session_page_css)
         .service(r_get_session_page)
 }
