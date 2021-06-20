@@ -7,7 +7,9 @@ use std::sync::Arc;
 use crate::state::State;
 use actix_web::{
     client::{self, SendRequestError},
-    get, App, HttpMessage, HttpRequest, HttpResponse, HttpServer, Responder,
+    get,
+    middleware::Logger,
+    App, HttpRequest, HttpResponse, HttpServer, Responder,
 };
 
 #[get("/")]
@@ -64,13 +66,17 @@ async fn r_dist(req: HttpRequest) -> Result<HttpResponse, SendRequestError> {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    env_logger::init();
+
     let state = Arc::new(State::default());
 
     let bind = "0.0.0.0:1950";
     println!("Starting server on {}", bind);
 
     HttpServer::new(move || {
+        // let logger = Logger::default().exclude("/dist/");
         App::new()
+            // .wrap(logger)
             .data(state.clone())
             .service(r_index)
             .service(r_dist)
