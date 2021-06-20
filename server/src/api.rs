@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use crate::parser::{parse_html, HtmlPart};
-use crate::state::{self, FileKind, Session, State};
-use actix_web::{get, post, put, web, App, HttpResponse, HttpServer, Responder, Scope};
+use crate::state::{FileKind, Session, State};
+use actix_web::{get, post, put, web, HttpResponse, Responder, Scope};
 use serde::Deserialize;
 use serde_json::json;
 

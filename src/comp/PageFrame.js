@@ -1,6 +1,8 @@
 import React from 'react';
 import { useWindowSize } from 'react-use';
+import pt from 'prop-types';
 import { queueMeasureRender } from '../async';
+import { EventType } from '../EventType';
 
 function PageFrame(props) {
   const ref = React.useRef();
@@ -38,5 +40,10 @@ function PageFrame(props) {
     />
   );
 }
+
+PageFrame.propTypes = {
+  resize: pt.instanceOf(EventType).isRequired,
+  sessionId: pt.string.isRequired,
+};
 
 export default PageFrame;

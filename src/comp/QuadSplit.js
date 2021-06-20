@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import pt from 'prop-types';
 import styled from '@emotion/styled';
 import { Col, Row } from './Flex';
+import { EventType } from '../EventType';
 
 const splitBasis = (percent, vertical) => {
   const shared = { flexShrink: 1000 };
@@ -35,6 +37,10 @@ const DividerX = styled.button`
   }
 `;
 
+DividerX.propTypes = {
+  percent: pt.number.isRequired,
+};
+
 const DividerY = styled.button`
   appearance: none;
   display: block;
@@ -52,6 +58,10 @@ const DividerY = styled.button`
   }
 `;
 
+DividerY.propTypes = {
+  percent: pt.number.isRequired,
+};
+
 const Net = styled.div`
   display: block;
   position: fixed;
@@ -63,15 +73,7 @@ const Net = styled.div`
   // background: rgba(255, 255, 255, 0.2);
 `;
 
-function Divider({
-  vertical,
-  split,
-  percent,
-  isSizing,
-  onPress,
-  onRelease,
-  onChange,
-}) {
+function Divider({ vertical, percent, isSizing, onPress, onRelease, onChange }) {
   const start = React.useRef(null);
 
   const Tag = vertical ? DividerX : DividerY;
@@ -107,6 +109,15 @@ function Divider({
     </Tag>
   );
 }
+
+Divider.propTypes = {
+  vertical: pt.bool,
+  isSizing: pt.bool,
+  onPress: pt.func.isRequired,
+  onRelease: pt.func.isRequired,
+  onChange: pt.func.isRequired,
+  percent: pt.number.isRequired,
+};
 
 function useSplit({ ident, vertical, initial, sizing, setSizing }) {
   const [percent, setPercent] = React.useState(initial);
@@ -230,5 +241,11 @@ function QuadSplit(props) {
     </QuadBox>
   );
 }
+
+QuadSplit.propTypes = {
+  resize: pt.instanceOf(EventType).isRequired,
+  children: pt.arrayOf(pt.node).isRequired,
+  onSubmit: pt.func,
+};
 
 export default QuadSplit;

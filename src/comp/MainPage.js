@@ -1,4 +1,5 @@
 import React from 'react';
+// import pt from 'prop-types';
 import Editor from './Editor';
 import QuadSplit from './QuadSplit';
 import PageFrame from './PageFrame';
@@ -130,5 +131,7 @@ function MainPage() {
     </QuadSplit>
   );
 }
+
+MainPage.propTypes = {};
 
 export default MainPage;

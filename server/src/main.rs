@@ -8,8 +8,12 @@ use crate::state::State;
 use actix_web::{
     client::{self, SendRequestError},
     get,
-    middleware::Logger,
-    App, HttpRequest, HttpResponse, HttpServer, Responder,
+    // middleware::Logger,
+    App,
+    HttpRequest,
+    HttpResponse,
+    HttpServer,
+    Responder,
 };
 
 #[get("/")]
