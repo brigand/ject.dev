@@ -1,8 +1,9 @@
 import React from 'react';
 import Editor from './Editor';
 import QuadSplit from './QuadSplit';
+import PageFrame from './PageFrame';
 import { EventType } from '../EventType';
-import { useAsync } from 'react-use';
+import { useAsync, useWindowSize } from 'react-use';
 import * as api from '../api';
 
 function defaultFiles() {
@@ -47,6 +48,7 @@ console.log('Updated div');
 function MainPage() {
   const [resize] = React.useState(() => new EventType());
   const session = React.useRef({ files: defaultFiles() });
+  useWindowSize();
 
   const createSession = useAsync(async () => {
     const { session_id } = await api.createSession(session.current);
@@ -94,15 +96,7 @@ function MainPage() {
         ) : createSession.error ? (
           'Failed to create session'
         ) : createSession.value ? (
-          <iframe
-            height={500}
-            width={500}
-            src={`/api/session/${encodeURIComponent(createSession.value)}/page`}
-            allow="allow-modals allow-forms allow-scripts allow-same-origin allow-popups allow-top-navigation-by-user-activation allow-downloads"
-            allowFullScreen
-            frameBorder="0"
-            style={{ background: 'white' }}
-          />
+          <PageFrame sessionId={createSession.value} resize={resize} />
         ) : (
           'Unexpected state. Report a bug.'
         )}

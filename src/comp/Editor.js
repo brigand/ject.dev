@@ -38,8 +38,6 @@ self.MonacoEnvironment = {
 
 let registeredTheme = false;
 
-function useResize(resize, editorRef) {}
-
 function Editor(props) {
   const containerRef = React.useRef();
   const editorRef = React.useRef();
