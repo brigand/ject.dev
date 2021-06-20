@@ -51,7 +51,7 @@ function Editor(props) {
     }
 
     const ed = monaco.editor.create(containerRef.current, {
-      value: props.value.current,
+      value: props.value.contents,
       language: props.language,
       theme: 'andromeda',
       fontSize: 16,
