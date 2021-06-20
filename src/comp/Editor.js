@@ -2,7 +2,9 @@ import React from 'react';
 
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.main.js';
 import styled from '@emotion/styled';
+import pt from 'prop-types';
 import andromeda from '../theme/andromeda-monaco.json';
+import { EventType } from '../EventType';
 
 const Root = styled.div`
   height: 100%;
@@ -36,7 +38,55 @@ self.MonacoEnvironment = {
   },
 };
 
+// https://github.com/microsoft/monaco-editor/issues/264#issuecomment-289911286
+monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
+  target: monaco.languages.typescript.ScriptTarget.ES2020,
+  allowNonTsExtensions: true,
+  moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+  module: monaco.languages.typescript.ModuleKind.ES2020,
+  noEmit: true,
+  typeRoots: ['node_modules/@types'],
+});
+
+monaco.languages.typescript.typescriptDefaults.addExtraLib(
+  require('!raw-loader!@types/react/index.d.ts'),
+  'node_modules/@types/react/index.d.ts',
+);
+
+monaco.languages.typescript.typescriptDefaults.addExtraLib(
+  require('!raw-loader!@types/react-dom/index.d.ts'),
+  'node_modules/@types/react-dom/index.d.ts',
+);
+
+monaco.languages.typescript.typescriptDefaults.addExtraLib(
+  `declare var React: require('react');
+  declare var ReactDOM: require('react-dom');`,
+  // 'node_modules/@types/inject-global/index.d.ts',
+);
+
+monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
+  noSemanticValidation: false,
+  noSyntaxValidation: false,
+});
+
 let registeredTheme = false;
+
+function extension(language) {
+  switch (language) {
+    case 'javascript':
+      return 'jsx';
+    case 'typescript':
+      return 'tsx';
+    case 'css':
+      return 'css';
+    case 'html':
+      return 'html';
+    case 'json':
+      return 'json';
+    default:
+      return 'txt';
+  }
+}
 
 function Editor(props) {
   const containerRef = React.useRef();
@@ -49,8 +99,12 @@ function Editor(props) {
     }
 
     const ed = monaco.editor.create(containerRef.current, {
-      value: props.value.contents,
-      language: props.language,
+      // language: props.language,
+      model: monaco.editor.createModel(
+        props.value.contents,
+        props.language,
+        monaco.Uri.parse(`file:///your-code.${extension(props.language)}`),
+      ),
       theme: 'andromeda',
       fontSize: 16,
       scrollBeyondLastLine: false,
@@ -101,5 +155,15 @@ function Editor(props) {
     </Root>
   );
 }
+
+Editor.propTypes = {
+  onChange: pt.func,
+  resize: pt.instanceOf(EventType),
+  language: pt.string.isRequired,
+  value: pt.shape({
+    contents: pt.string.isRequired,
+    version: pt.number.isRequired,
+  }).isRequired,
+};
 
 export default Editor;

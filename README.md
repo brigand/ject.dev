@@ -3,7 +3,7 @@
 Prerequisites:
 
 - node/npm >=14
-- rustc/cargo (latest stable release)
+- rustc/cargo (latest nightly release)
 
 Add the following two entries to /etc/hosts:
 

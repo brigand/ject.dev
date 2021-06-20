@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crate::js::compile;
 use crate::parser::{parse_html, HtmlPart};
 use crate::state::{FileKind, Session, State};
 use actix_web::{get, post, put, web, HttpResponse, Responder, Scope};
@@ -81,9 +82,18 @@ async fn r_get_session_page_js(
         }
     };
 
+    let js = match compile(js_file.contents) {
+        Ok(js) => js,
+        Err(err) => {
+            return HttpResponse::NotFound()
+                .header("content-type", "text/plain; charset=utf-8")
+                .body(format!("Failed to compile JS with SWC\n\n{:?}", err));
+        }
+    };
+
     HttpResponse::Ok()
         .header("content-type", "application/javascript; charset=utf-8")
-        .body(js_file.contents)
+        .body(js)
 }
 
 #[get("/session/{session_id}/page.css")]
