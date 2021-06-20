@@ -192,7 +192,7 @@ const Col2 = styled(Col)`
 `;
 
 const QuadBox = styled(Row)`
-  height: 100%;
+  height: calc(100% - 2px);
   position: relative;
 
   & > button,
@@ -233,7 +233,9 @@ function QuadSplit(props) {
       </Col2>
       <Col2 style={splits.x.basis.b}>
         <Cell style={splits.y2.basis.a}>{children[2]}</Cell>
-        <Cell style={splits.y2.basis.b}>{children[3]}</Cell>
+        <Cell style={{ ...splits.y2.basis.b, overflow: 'hidden' }}>
+          {children[3]}
+        </Cell>
 
         {splits.y2.divider}
       </Col2>

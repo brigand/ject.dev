@@ -1,4 +1,5 @@
 :root {
+  /* https://github.com/EliverLara/Andromeda/blob/master/themes/Andromeda-color-theme.json#L66-L67 */
   --ij-bg: #23262e;
   --ij-fg: #d5ced9;
 }
@@ -16,7 +17,8 @@ body,
 }
 
 body {
-  /* https://github.com/EliverLara/Andromeda/blob/master/themes/Andromeda-color-theme.json#L66-L67 */
   background: var(--ij-bg);
   color: var(--ij-fg);
+
+  overflow: hidden;
 }
