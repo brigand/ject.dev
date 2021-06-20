@@ -19,6 +19,7 @@ module.exports = {
   devServer: {
     // contentBase: './dist',
     compress: true,
+    allowedHosts: ['localhost', 'enject.org.local'],
   },
   plugins: [
     new HtmlWebpackPlugin({
