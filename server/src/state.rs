@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::sync::{Mutex, MutexGuard};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-enum FileKind {
+pub enum FileKind {
     JavaScript,
     Css,
     Html,
@@ -12,13 +12,19 @@ enum FileKind {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct File {
-    kind: FileKind,
-    contents: String,
+    pub kind: FileKind,
+    pub contents: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Session {
     pub files: Vec<File>,
+}
+
+impl Session {
+    pub fn file(&self, kind: FileKind) -> Option<&File> {
+        self.files.iter().find(|file| file.kind == kind)
+    }
 }
 
 #[derive(Debug, Default)]

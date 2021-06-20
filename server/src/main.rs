@@ -1,4 +1,5 @@
 mod api;
+mod parser;
 mod state;
 
 use std::sync::Arc;
