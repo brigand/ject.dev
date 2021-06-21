@@ -12,13 +12,7 @@ function defaultFiles() {
     {
       kind: 'JavaScript',
       version: 1,
-      contents: `// This is an example
-document.querySelector('#message').textContent = 'Greetings';
-console.log('Updated div');
-let div = <div>Hello, world</div>;
-console.log('React element:', div);
-ReactDOM.render(div, document.querySelector('#root'));
-`,
+      contents: ``,
     },
     {
       kind: 'Html',
@@ -27,16 +21,11 @@ ReactDOM.render(div, document.querySelector('#root'));
 <html>
   <head>
     <meta charset="utf-8" />
-
     <link rel="stylesheet" href="inject!(urls.css)" />
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/17.0.2/umd/react.development.min.js"
-      crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.0.0-alpha-568dc3532/umd/react-dom.development.min.js"
-      crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
   </head>
 
   <body>
-    <div id="message"></div>
     <div id="root"></div>
     <script src="inject!(urls.js)"></script>
   </body>
