@@ -162,6 +162,7 @@ async fn r_get_session_page(
                 HtmlPart::IncludePath(path) => match &path[..] {
                     &["urls", "js"] => out.push_str(&page_url(".js")),
                     &["urls", "css"] => out.push_str(&page_url(".css")),
+                    &["deps", "react"] => out.push_str(r#"<script src="https://cdnjs.cloudflare.com/ajax/libs/react/17.0.2/umd/react.development.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.0.0-alpha-568dc3532/umd/react-dom.development.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>"#),
                     &["urls", other] => {
                         anyhow::bail!("Unexpected second segment in inject(urls.{})", other)
                     }
