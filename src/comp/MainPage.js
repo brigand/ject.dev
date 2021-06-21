@@ -82,7 +82,7 @@ function MainPage() {
             session.current = {
               ...session.current,
               files: session.current.files.map((file) =>
-                file.kind === 'JavaScript' ? { ...file, contents: value } : file,
+                file.kind === 'Html' ? { ...file, contents: value } : file,
               ),
             };
           }}
