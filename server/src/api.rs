@@ -49,13 +49,10 @@ async fn r_put_session(
         session,
     } = info.0;
 
-    let mut sessions = state.sessions();
-    if let Some(existing_session) = sessions.get_mut(&session_id) {
+    if let Some(mut existing_session) = state.sessions().into_item(&session_id) {
         *existing_session = session;
-        drop(sessions);
         HttpResponse::Ok().json(json!({}))
     } else {
-        drop(sessions);
         HttpResponse::UnprocessableEntity().json(json!({
         "message": "Unknown session_id",
          "input_session_id": session_id,
@@ -65,13 +62,13 @@ async fn r_put_session(
 
 #[get("/session/{session_id}/page.js")]
 async fn r_get_session_page_js(
-    info: web::Path<(String,)>,
+    info: web::Path<String>,
     state: web::Data<Arc<State>>,
 ) -> impl Responder {
-    let session_id = info.0 .0;
+    let session_id = info.0;
     let js_file = match state
         .sessions()
-        .get(&session_id)
+        .into_item(&session_id)
         .and_then(|session| session.file(FileKind::JavaScript).cloned())
     {
         Some(session) => session,
@@ -98,13 +95,13 @@ async fn r_get_session_page_js(
 
 #[get("/session/{session_id}/page.css")]
 async fn r_get_session_page_css(
-    info: web::Path<(String,)>,
+    info: web::Path<String>,
     state: web::Data<Arc<State>>,
 ) -> impl Responder {
-    let session_id = info.0 .0;
+    let session_id = info.0;
     let css_file = match state
         .sessions()
-        .get(&session_id)
+        .into_item(&session_id)
         .and_then(|session| session.file(FileKind::Css).cloned())
     {
         Some(session) => session,
@@ -121,14 +118,10 @@ async fn r_get_session_page_css(
 }
 
 #[get("/session/{session_id}/page")]
-async fn r_get_session_page(
-    info: web::Path<(String,)>,
-    state: web::Data<Arc<State>>,
-) -> HttpResponse {
-    let session_id = info.0 .0;
+async fn r_get_session_page(info: web::Path<String>, state: web::Data<Arc<State>>) -> HttpResponse {
+    let session_id = info.0;
     let html = {
-        let sessions = state.sessions();
-        let session = match sessions.get(&session_id).clone() {
+        let session = match state.sessions().into_item(&session_id) {
             Some(session) => session,
             None => {
                 return HttpResponse::NotFound()
