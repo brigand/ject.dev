@@ -1,4 +1,5 @@
 mod api;
+mod http_error;
 mod js;
 mod parser;
 mod state;

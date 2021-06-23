@@ -1,12 +1,11 @@
+use owning_ref::MutexGuardRefMut;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 use std::sync::{Mutex, MutexGuard};
-use owning_ref::MutexGuardRefMut;
 
 pub type SessionMap = HashMap<String, Session>;
 pub type SessionRef<'a> = MutexGuardRefMut<'a, SessionMap, Session>;
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FileKind {
@@ -41,14 +40,17 @@ pub struct State {
 impl State {
     /// Get a lock for the state's sessions. Take care not to hold this across awaits.
     pub fn sessions<'a>(&'a self) -> SessionsGuard<'a> {
-        SessionsGuard { guard:self.sessions
-            .lock()
-            .expect("State.sessions mutex must not be poisioned") }
+        SessionsGuard {
+            guard: self
+                .sessions
+                .lock()
+                .expect("State.sessions mutex must not be poisioned"),
+        }
     }
 }
 
 pub struct SessionsGuard<'a> {
-    guard: MutexGuard<'a, SessionMap>
+    guard: MutexGuard<'a, SessionMap>,
 }
 
 impl<'a> Deref for SessionsGuard<'a> {
@@ -65,8 +67,7 @@ impl<'a> DerefMut for SessionsGuard<'a> {
     }
 }
 
-
-impl<'a> SessionsGuard<'a>{
+impl<'a> SessionsGuard<'a> {
     pub fn into_item(self, key: &str) -> Option<SessionRef<'a>> {
         if self.guard.contains_key(key) {
             Some(MutexGuardRefMut::new(self.guard).map_mut(|guard| guard.get_mut(key).unwrap()))
@@ -75,4 +76,3 @@ impl<'a> SessionsGuard<'a>{
         }
     }
 }
-
