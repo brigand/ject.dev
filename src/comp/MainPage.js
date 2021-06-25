@@ -36,6 +36,7 @@ function defaultFiles() {
       kind: 'Css',
       version: 1,
       contents: `html {
+  font-family: Arial, sans;
   background: #23262e;
   color: #d5ced9;
 }`,

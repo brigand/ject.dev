@@ -30,7 +30,7 @@ Starting server on 0.0.0.0:1950
 
 # Alternative (auto-restart)
 $ cargo install cargo-watch
-$ cargo watch -x run -w server/
+$ cargo watch -c -x run -w server/
 ```
 
 Then open your browser to http://enject.org.local:1950/

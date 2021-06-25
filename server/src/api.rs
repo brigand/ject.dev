@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crate::http_error::{ErrorMime, HttpError};
 use crate::js::compile;
 use crate::parser::{parse_html, HtmlPart};
 use crate::state::{FileKind, Session, State};
@@ -66,31 +67,18 @@ async fn r_get_session_page_js(
     state: web::Data<Arc<State>>,
 ) -> impl Responder {
     let session_id = info.0;
-    let js_file = match state
-        .sessions()
-        .into_item(&session_id)
-        .and_then(|session| session.file(FileKind::JavaScript).cloned())
-    {
-        Some(session) => session,
-        None => {
-            return HttpResponse::NotFound()
-                .header("content-type", "text/html; charset=utf-8")
-                .body("<h2>Unknown session or file</h2><p>Please try reloading the page</p>")
-        }
-    };
-
-    let js = match compile(js_file.contents) {
-        Ok(js) => js,
-        Err(err) => {
-            return HttpResponse::NotFound()
-                .header("content-type", "text/plain; charset=utf-8")
-                .body(format!("Failed to compile JS with SWC\n\n{:?}", err));
-        }
+    let err_mime = ErrorMime::JavaScript;
+    let js = match state.sessions().into_item(&session_id) {
+        None => return HttpError::session_not_found(err_mime).to_response(err_mime),
+        Some(session) => match session.file(FileKind::JavaScript) {
+            None => return HttpError::file_not_found(err_mime).to_response(err_mime),
+            Some(css) => css.clone(),
+        },
     };
 
     HttpResponse::Ok()
         .header("content-type", "application/javascript; charset=utf-8")
-        .body(js)
+        .body(js.contents)
 }
 
 #[get("/session/{session_id}/page.css")]
@@ -99,50 +87,35 @@ async fn r_get_session_page_css(
     state: web::Data<Arc<State>>,
 ) -> impl Responder {
     let session_id = info.0;
-    let css_file = match state
-        .sessions()
-        .into_item(&session_id)
-        .and_then(|session| session.file(FileKind::Css).cloned())
-    {
-        Some(session) => session,
-        None => {
-            return HttpResponse::NotFound()
-                .header("content-type", "text/html; charset=utf-8")
-                .body("<h2>Unknown session or file</h2><p>Please try reloading the page</p>")
-        }
+    let err_mime = ErrorMime::Css;
+    let css = match state.sessions().into_item(&session_id) {
+        None => return HttpError::session_not_found(err_mime).to_response(err_mime),
+        Some(session) => match session.file(FileKind::Css) {
+            None => return HttpError::file_not_found(err_mime).to_response(err_mime),
+            Some(css) => css.clone(),
+        },
     };
 
     HttpResponse::Ok()
         .header("content-type", "text/css; charset=utf-8")
-        .body(css_file.contents)
+        .body(css.contents)
 }
 
 #[get("/session/{session_id}/page")]
 async fn r_get_session_page(info: web::Path<String>, state: web::Data<Arc<State>>) -> HttpResponse {
+    let err_mime = ErrorMime::Html;
     let session_id = info.0;
-    let html = {
-        let session = match state.sessions().into_item(&session_id) {
-            Some(session) => session,
-            None => {
-                return HttpResponse::NotFound()
-                    .header("content-type", "text/html; charset=utf-8")
-                    .body("<h2>Unknown session</h2><p>Please try reloading the page</p>")
-            }
-        };
-
-        match session.file(FileKind::Html) {
+    let html = match state.sessions().into_item(&session_id) {
+        None => return HttpError::session_not_found(err_mime).to_response(err_mime),
+        Some(session) => match session.file(FileKind::Html) {
+            None => return HttpError::file_not_found(err_mime).to_response(err_mime),
             Some(html) => html.clone(),
-            None => return HttpResponse::UnprocessableEntity().header("content-type", "text/html; charset=utf-8").body("<h2>No HTML file found</h2><p>The session appears to be missing an essential file</p>")
-        }
+        },
     };
 
     let parts = match parse_html(&html.contents) {
         Ok(parts) => parts,
-        Err(err) => {
-            return HttpResponse::UnprocessableEntity()
-                .header("content-type", "text/plain; charset=utf-8")
-                .body(format!("Invalid HTML Provided\n\nReason:\n{}", err));
-        }
+        Err(err) => return HttpError::invalid_html(err).to_response(err_mime),
     };
 
     let page_url = |suffix: &str| format!("/api/session/{}/page{}", session_id, suffix);
@@ -172,12 +145,7 @@ async fn r_get_session_page(info: web::Path<String>, state: web::Data<Arc<State>
         Ok(html) => HttpResponse::Ok()
             .header("content-type", "text/html; charset=utf-8")
             .body(html),
-        Err(err) => HttpResponse::UnprocessableEntity()
-            .header("content-type", "text/plain; charset=utf-8")
-            .body(format!(
-                "Unable to generate html for the page\n\nReason:\n{}",
-                err
-            )),
+        Err(err) => HttpError::generate_html_fail(err).to_response(err_mime),
     }
 }
 
