@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use actix_web::{http::StatusCode, HttpResponse};
 use serde_json::{json, to_string};
 
@@ -79,17 +81,64 @@ impl HttpError<&'static str, String, &'static str> {
     }
 }
 
-impl HttpError {
+impl<T, M, C> HttpError<T, M, C>
+where
+    T: AsRef<str>,
+    M: AsRef<str>,
+    C: AsRef<str>,
+{
     pub fn to_response(&self, mime: ErrorMime) -> HttpResponse {
+        let title = self.title.as_ref();
+        let message = self.message.as_ref();
+        let code = self.code.as_ref();
+
         let get_json = || {
             to_string(&json!({
-                "title": &self.title,
-                "message": &self.message,
-                "code": &self.code,
+                "title": title.to_string(),
+                "message": message.to_string(),
+                "code": code.to_string(),
             }))
             .unwrap()
             .replace("</", "\\x3c/")
         };
+
+        fn to_css_string(s: &str) -> String {
+            let mut out = String::with_capacity(s.len() + 2);
+            out.push('"');
+            for ch in s.chars() {
+                // Ref: http://www.asciitable.com/
+                // Ref: https://stackoverflow.com/a/9063069/1074592
+                let end_of_control = 33;
+                let del = 127;
+
+                let num = u32::from(ch);
+                if ch == ' ' {
+                    out.push(ch);
+                } else if num < end_of_control || ch == '"' || num == del {
+                    use std::fmt::Write;
+                    write!(&mut out, "\\{:06X}", num).unwrap();
+                } else {
+                    out.push(ch);
+                }
+            }
+
+            out.push('"');
+
+            out
+        }
+
+        let colors = indoc::indoc!(
+            r#"
+            :root {
+                --fg: #d5ced9;
+                --bg: #23262e;
+                --red: #ee5d43;
+                --purple: #c74ded;
+                --yellow: #ffe66d;
+                --font: Arial, sans;
+            }
+            "#
+        );
 
         HttpResponse::build(self.status)
             .header(
@@ -109,30 +158,97 @@ impl HttpError {
                     <html>
                         <head>
                             <meta charset="utf-8" />
+                            <style>
+                                {colors}
+                                html {{
+                                    font-family: var(--font);
+                                    background: var(--bg);
+                                    color: var(--fg);
+                                }}
+                                h1 {{ color: var(--red)}}
+                                h3 span {{ color: var(--purple); }}
+                                p {{ color: var(--yellow); white-space: pre-wrap; }}
+                            </style>
                         </head>
 
                         <body>
                             <h1>{title}</h1>
-                            <h3>Code: {code}</h3>
+                            <h3>Code: <span>{code}</span></h3>
                             <p>{message}</p>
                         </body>
                     </html>
                     "#,
-                    title = html_escape::encode_text(&self.title),
-                    message = html_escape::encode_text(&self.message),
-                    code = html_escape::encode_text(&self.code)
+                    title = html_escape::encode_text(title),
+                    message = html_escape::encode_text(message),
+                    code = html_escape::encode_text(code),
+                    colors = colors
                 ),
                 ErrorMime::JavaScript => format!(
-                    "{pre}{json};\n {code}\n{close}",
+                    "{pre}{json};\nlet css = {css_json};\n{code}\n{close}",
                     json = get_json(),
                     pre = "{ let error_json = ",
                     close = "}",
                     code = indoc::indoc!(r#"
-                        document.body.appendChild(Object.assign(document.createElement('h1'), { textContent: error_json.title }));
-                        document.body.appendChild(Object.assign(document.createElement('h3'), { textContent: 'resource type: JavaScript, code: ' + error_json.code }));
-                        document.body.appendChild(Object.assign(document.createElement('p'), { textContent: error_json.message }));
-                        "#)),
-                ErrorMime::Css => todo!(),
+                        const h = (tag, {style, ...props}, ...children) => {
+                            const element = Object.assign(document.createElement(tag), props);
+                            Object.assign(element.style, style);
+                            for (const child of children) {
+                                if (!child || child === true) continue;
+                                if (child instanceof Node) {
+                                    element.appendChild(child);
+                                } else {
+                                    const text = document.createTextNode(String(child));
+                                    element.appendChild(text);
+                                }
+                            }
+
+                            return element;
+                        };
+
+                        document.head.appendChild(
+                            h('style', {}, css),
+                        );
+                        document.body.appendChild(
+                            h('aside', {},
+                                h('h1', { style: { color: 'var(--red)' } }, error_json.title),
+                                h('h3', {},
+                                    'Code: ',
+                                    h('span', { style: { color: 'var(--purple)' } }, error_json.code),
+                                ),
+                                h('p', { style: { color: 'var(--yellow)', whiteSpace: 'pre-wrap' } }, error_json.message),
+                            ),
+                        );
+                        "#),
+                        css_json = serde_json::to_string(colors).unwrap(),
+                    ),
+                ErrorMime::Css => indoc::formatdoc!(r#"
+                    {colors}
+
+                    html {{
+                        background: var(--bg);
+                    }}
+
+                    html::before {{
+                        content: {title};
+                        display: block;
+                        font-size: 2em;
+                        margin: 1rem;
+                        color: var(--red);
+                        font-family: var(--font);
+                    }}
+
+                    body::before {{
+                        content: {body};
+                        display: block;
+                        white-space: pre-wrap;
+                        margin: 1rem;
+                        color: var(--yellow);
+                        font-family: var(--font);
+                    }}
+                "#,
+                title = to_css_string(title),
+                body = to_css_string(&format!("Code: {}\n\n{}", code, message)),
+                colors = colors)
             })
     }
 }
