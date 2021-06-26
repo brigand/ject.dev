@@ -46,6 +46,9 @@ monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
   module: monaco.languages.typescript.ModuleKind.ES2020,
   noEmit: true,
   typeRoots: ['node_modules/@types'],
+  jsx: true,
+  jsxFactory: 'React.createElement',
+  allowJs: true,
 });
 
 monaco.languages.typescript.typescriptDefaults.addExtraLib(
