@@ -90,7 +90,6 @@ function MainPage() {
                 file.kind === 'JavaScript' ? { ...file, contents: value } : file,
               ),
             };
-            console.log(`Changed to:`, value);
           }}
           value={session.current.files.find((file) => file.kind === 'JavaScript')}
         />

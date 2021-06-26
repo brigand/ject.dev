@@ -49,20 +49,20 @@ monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
 });
 
 monaco.languages.typescript.typescriptDefaults.addExtraLib(
-  require('!raw-loader!@types/react/index.d.ts'),
+  require('!raw-loader!@types/react/index.d.ts').default,
   'node_modules/@types/react/index.d.ts',
 );
 
 monaco.languages.typescript.typescriptDefaults.addExtraLib(
-  require('!raw-loader!@types/react-dom/index.d.ts'),
+  require('!raw-loader!@types/react-dom/index.d.ts').default,
   'node_modules/@types/react-dom/index.d.ts',
 );
 
-monaco.languages.typescript.typescriptDefaults.addExtraLib(
-  `declare var React: require('react');
-  declare var ReactDOM: require('react-dom');`,
-  // 'node_modules/@types/inject-global/index.d.ts',
-);
+// monaco.languages.typescript.typescriptDefaults.addExtraLib(
+//   `declare var React: require('react');
+//   declare var ReactDOM: require('react-dom');`,
+//   'node_modules/@types/inject-global/index.d.ts',
+// );
 
 monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
   noSemanticValidation: false,
