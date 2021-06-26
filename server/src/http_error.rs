@@ -79,6 +79,15 @@ impl HttpError<&'static str, String, &'static str> {
             status: StatusCode::UNPROCESSABLE_ENTITY,
         }
     }
+
+    pub fn js_compile_fail(error: impl Display) -> Self {
+        Self {
+            title: "JS Parse/Compile Failed",
+            message: format!("nReason:\n{}", error),
+            code: "js_compile_fail",
+            status: StatusCode::OK,
+        }
+    }
 }
 
 impl<T, M, C> HttpError<T, M, C>

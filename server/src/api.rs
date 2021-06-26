@@ -76,9 +76,12 @@ async fn r_get_session_page_js(
         },
     };
 
-    HttpResponse::Ok()
-        .header("content-type", "application/javascript; charset=utf-8")
-        .body(js.contents)
+    match compile(js.contents) {
+        Ok(js) => HttpResponse::Ok()
+            .header("content-type", "application/javascript; charset=utf-8")
+            .body(js),
+        Err(err) => HttpError::js_compile_fail(err).to_response(err_mime),
+    }
 }
 
 #[get("/session/{session_id}/page.css")]
