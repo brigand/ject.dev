@@ -1,4 +1,6 @@
 mod api;
+mod db;
+mod env;
 mod http_error;
 mod js;
 mod parser;
