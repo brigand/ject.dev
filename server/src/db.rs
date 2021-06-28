@@ -1,6 +1,8 @@
 use crate::env::open_rocksdb_env;
+use actix_web::HttpResponse;
 use rocksdb::DB;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::{borrow::Cow, fmt::Debug, sync::Mutex};
 use thiserror::Error;
 
@@ -43,9 +45,36 @@ pub enum DbError {
         source: rocksdb::Error,
         key_debug: String,
     },
+
+    #[error("Unable to remove the key {}", key_debug)]
+    UnableToRemoveKey {
+        source: rocksdb::Error,
+        key_debug: String,
+    },
 }
 
-type RocksResult<T, E = rocksdb::Error> = Result<T, E>;
+impl DbError {
+    pub fn to_response(&self) -> HttpResponse {
+        match self {
+            DbError::Open { .. } => HttpResponse::InternalServerError()
+                .json(json!({ "code": "db_open", "message": "Unable to open database" })),
+            DbError::GetKey { .. } => HttpResponse::InternalServerError()
+                .json(json!({ "code": "db_get_key", "message": self.to_string() })),
+            DbError::KeyNotFound { .. } => HttpResponse::NotFound()
+                .json(json!({ "code": "db_key_not_found", "message": self.to_string() })),
+            DbError::Utf8 { .. } => HttpResponse::InternalServerError()
+                .json(json!({ "code": "db_utf8", "message": self.to_string() })),
+            DbError::DeserializeJson { .. } => HttpResponse::InternalServerError()
+                .json(json!({ "code": "db_deser_json", "message": self.to_string() })),
+            DbError::SerializeValue { .. } => HttpResponse::InternalServerError()
+                .json(json!({ "code": "db_ser_value", "message": self.to_string() })),
+            DbError::Put { .. } => HttpResponse::InternalServerError()
+                .json(json!({ "code": "db_put_value", "message": self.to_string() })),
+            DbError::UnableToRemoveKey { .. } => HttpResponse::InternalServerError()
+                .json(json!({ "code": "db_remove_key", "message": self.to_string() })),
+        }
+    }
+}
 
 /// Represents a key in the rocksdb database. Each is serialized to JSON using serde_json.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -55,7 +84,7 @@ pub enum Key<'a> {
 
     /// A session in the list of current sessions
     /// Value is a session_id string
-    SessionIndex { index: usize },
+    SessionIndex { index: u32 },
 
     /// A session (containing all relevant data). These can be recycled when SessionIndex wraps around.
     Session { session_id: Cow<'a, str> },
@@ -181,6 +210,14 @@ impl IjDb {
         Ok(())
     }
 
+    pub fn remove_key(&self, key: &dyn KeyLike) -> DbResult<()> {
+        self.db
+            .delete(key.render_key())
+            .map_err(|source| DbError::UnableToRemoveKey {
+                key_debug: key.dbg(),
+                source,
+            })
+    }
     pub fn incr_session_counter(&self, max_value: u32) -> DbResult<u32> {
         let _lock = self
             .session_counter_lock
@@ -193,11 +230,31 @@ impl IjDb {
             Err(DbError::KeyNotFound { .. }) => 0,
             Err(err) => return Err(err),
         };
+
         if next < max_value {
             next += 1;
         } else {
             next = 1;
         }
+
+        // Remove existing session at this index if any.
+        let existing_key = Key::SessionIndex { index: next };
+        match self.get_json::<String>(&existing_key) {
+            Ok(session_id) => {
+                let sess_key = Key::Session {
+                    session_id: Cow::Owned(session_id),
+                };
+                let _r = self.remove_key(&existing_key);
+                let _r = self.remove_key(&sess_key);
+            }
+            Err(DbError::DeserializeJson { .. }) => {
+                let _r = self.remove_key(&existing_key);
+            }
+            Err(DbError::KeyNotFound { .. }) => {
+                // Do nothing
+            }
+            Err(err) => return Err(err),
+        };
 
         self.put_json(&key, next)?;
 

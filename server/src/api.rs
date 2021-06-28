@@ -1,12 +1,20 @@
+use std::borrow::Cow;
 use std::sync::Arc;
 
+use crate::db;
 use crate::http_error::{ErrorMime, HttpError};
 use crate::js::compile;
 use crate::parser::{parse_html, HtmlPart};
 use crate::state::{FileKind, Session, State};
+use crate::DbData;
 use actix_web::{get, post, put, web, HttpResponse, Responder, Scope};
 use serde::Deserialize;
 use serde_json::json;
+
+#[cfg(debug_assert)]
+const SESSION_LIMIT: u32 = 512;
+#[cfg(not(debug_assert))]
+const SESSION_LIMIT: u32 = 1024 * 8;
 
 #[get("/health")]
 async fn r_health() -> impl Responder {
@@ -23,13 +31,29 @@ struct SessionNew {
 #[post("/session/new")]
 async fn r_post_session_new(
     info: web::Json<SessionNew>,
-    state: web::Data<Arc<State>>,
+    // state: web::Data<Arc<State>>,
+    db: DbData,
 ) -> impl Responder {
     let session_id = nanoid::nanoid!();
 
-    state
-        .sessions()
-        .insert(session_id.clone(), info.0.session.clone());
+    let session_index = match db.incr_session_counter(SESSION_LIMIT) {
+        Ok(i) => i,
+        Err(err) => return err.to_response(),
+    };
+
+    let si_key = db::Key::SessionIndex {
+        index: session_index,
+    };
+    if let Err(err) = db.put_json(&si_key, &session_id) {
+        return err.to_response();
+    }
+
+    let sess_key = db::Key::Session {
+        session_id: Cow::Borrowed(session_id.as_str()),
+    };
+    if let Err(err) = db.put_json(&sess_key, &info.0.session) {
+        return err.to_response();
+    }
 
     HttpResponse::Ok().json(json!({ "session_id": session_id }))
 }

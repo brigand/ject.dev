@@ -8,6 +8,8 @@ mod state;
 
 use std::sync::Arc;
 
+pub type DbData = actix_web::web::Data<Arc<db::IjDb>>;
+
 use crate::state::State;
 use actix_web::{
     client::{self, SendRequestError},
@@ -73,10 +75,11 @@ async fn r_dist(req: HttpRequest) -> Result<HttpResponse, SendRequestError> {
 }
 
 #[actix_web::main]
-async fn main() -> std::io::Result<()> {
+async fn main() -> anyhow::Result<()> {
     env_logger::init();
 
     let state = Arc::new(State::default());
+    let db = Arc::new(db::IjDb::open_env()?);
 
     let bind = "0.0.0.0:1950";
     println!("Starting server on {}", bind);
@@ -86,11 +89,14 @@ async fn main() -> std::io::Result<()> {
         App::new()
             // .wrap(logger)
             .data(state.clone())
+            .data(db.clone())
             .service(r_index)
             .service(r_dist)
             .service(api::service())
     })
     .bind(bind)?
     .run()
-    .await
+    .await?;
+
+    Ok(())
 }
