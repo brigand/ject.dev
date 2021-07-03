@@ -1,7 +1,9 @@
-use std::fmt::Display;
+use std::{borrow::Cow, fmt::Display};
 
-use actix_web::{http::StatusCode, HttpResponse};
+use actix_web::{http::StatusCode, HttpResponse, ResponseError};
 use serde_json::{json, to_string};
+
+use crate::db::DbError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorMime {
@@ -11,23 +13,41 @@ pub enum ErrorMime {
     Css,
 }
 
-pub struct HttpError<T, M, C> {
+#[derive(Debug, Clone)]
+pub struct HttpError {
     /// Error title, e.g. <h1> text content
-    pub title: T,
+    pub title: Cow<'static, str>,
     /// Error message, e.g. <p> text content
-    pub message: M,
+    pub message: Cow<'static, str>,
     /// Http error status
     pub status: StatusCode,
     /// Error code, for use in code and bug reports
-    pub code: C,
+    pub code: Cow<'static, str>,
+
+    /// A mime is required if you want to use this as an actix Err type
+    pub mime: Option<ErrorMime>,
 }
 
-impl HttpError<&'static str, &'static str, &'static str> {
+trait IntoCowStr {
+    fn cow(self) -> Cow<'static, str>;
+}
+impl IntoCowStr for &'static str {
+    fn cow(self) -> Cow<'static, str> {
+        Cow::Borrowed(self)
+    }
+}
+impl IntoCowStr for String {
+    fn cow(self) -> Cow<'static, str> {
+        Cow::Owned(self)
+    }
+}
+
+impl HttpError {
     pub fn session_not_found(mime: ErrorMime) -> Self {
         Self {
-            title: "Unknown session",
-            message: "Please try reloading the page",
-            code: "inject_session_not_found",
+            title: "Unknown session".cow(),
+            message: "Please try reloading the page".cow(),
+            code: "inject_session_not_found".cow(),
             // Not sending error as it causes the asset to not be used
             // An error response on CSS/JS resources will cause it to display strangely
             status: if mime == ErrorMime::Html {
@@ -35,6 +55,7 @@ impl HttpError<&'static str, &'static str, &'static str> {
             } else {
                 StatusCode::OK
             },
+            mime: None,
         }
     }
 
@@ -45,57 +66,93 @@ impl HttpError<&'static str, &'static str, &'static str> {
                 ErrorMime::Html => "No HTML file found",
                 ErrorMime::JavaScript => "No JavaScript file found",
                 ErrorMime::Css => "No CSS file found",
-            },
-            message: "The session appears to be missing an essential file",
-            code: "inject_missing_file",
+            }
+            .cow(),
+            message: "The session appears to be missing an essential file".cow(),
+            code: "inject_missing_file".cow(),
             // An error response on CSS/JS resources will cause it to display strangely
             status: if mime == ErrorMime::Html {
                 StatusCode::UNPROCESSABLE_ENTITY
             } else {
                 StatusCode::OK
             },
+            mime: None,
         }
     }
 }
 
-impl HttpError<&'static str, String, &'static str> {
+impl HttpError {
     pub fn invalid_html(error: impl Display) -> Self {
         Self {
-            title: "Invalid HTML Provided",
-            message: format!("Invalid HTML Provided\n\nReason:\n{}", error),
-            code: "inject_invalid_html",
+            title: "Invalid HTML Provided".cow(),
+            message: format!("Invalid HTML Provided\n\nReason:\n{}", error).cow(),
+            code: "inject_invalid_html".cow(),
             status: StatusCode::UNPROCESSABLE_ENTITY,
+            mime: None,
         }
     }
 
     pub fn generate_html_fail(error: impl Display) -> Self {
         Self {
-            title: "Unable to Generate HTML",
+            title: "Unable to Generate HTML".cow(),
             message: format!(
                 "Error encountered in HTML transform/generation.\n\nReason:\n{}",
                 error
-            ),
-            code: "inject_failed_html_generation",
+            )
+            .cow(),
+            code: "inject_failed_html_generation".cow(),
             status: StatusCode::UNPROCESSABLE_ENTITY,
+            mime: None,
         }
     }
 
     pub fn js_compile_fail(error: impl Display) -> Self {
         Self {
-            title: "JS Parse/Compile Failed",
-            message: format!("nReason:\n{}", error),
-            code: "js_compile_fail",
+            title: "JS Parse/Compile Failed".cow(),
+            message: format!("Reason:\n{}", error).cow(),
+            code: "js_compile_fail".cow(),
             status: StatusCode::OK,
+            mime: None,
         }
+    }
+
+    pub fn db_error(error: DbError) -> Self {
+        Self {
+            title: "Database Error".cow(),
+            message: error.to_string().cow(),
+            code: error.code().cow(),
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            mime: None,
+        }
+    }
+
+    pub fn with_mime(mut self, mime: ErrorMime) -> Self {
+        self.mime = Some(mime);
+        self
     }
 }
 
-impl<T, M, C> HttpError<T, M, C>
-where
-    T: AsRef<str>,
-    M: AsRef<str>,
-    C: AsRef<str>,
-{
+impl Display for HttpError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "HttpError(code: {}, title: {}, message: {})",
+            self.code, self.title, self.message
+        )
+    }
+}
+
+impl ResponseError for HttpError {
+    fn status_code(&self) -> StatusCode {
+        self.status
+    }
+
+    fn error_response(&self) -> HttpResponse {
+        self.to_response(self.mime.expect("Must call HttpError::with_mime before using an HttpError as an actix_web::ResponseError"))
+    }
+}
+
+impl HttpError {
     pub fn to_response(&self, mime: ErrorMime) -> HttpResponse {
         let title = self.title.as_ref();
         let message = self.message.as_ref();
