@@ -1,5 +1,6 @@
 use crate::env::open_rocksdb_env;
-use actix_web::HttpResponse;
+use actix_web::{http::StatusCode, HttpResponse, ResponseError};
+use owning_ref::OwningRef;
 use rocksdb::DB;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -103,6 +104,12 @@ pub enum Key<'a> {
     /// A session (containing all relevant data). These can be recycled when SessionIndex wraps around.
     Session { session_id: Cow<'a, str> },
 
+    /// A file in a session or saved
+    File {
+        session_or_saved_id: Cow<'a, str>,
+        name: Cow<'a, str>,
+    },
+
     /// A persistently saved snapshot of a session
     Saved { id: Cow<'a, str> },
     //
@@ -110,10 +117,23 @@ pub enum Key<'a> {
     // IpSession {ip_address:String},
 }
 
-impl Key<'_> {
+impl<'a> Key<'a> {
     fn render(&self) -> KeyRendered {
         KeyRendered {
             json: self.render_key(),
+        }
+    }
+
+    pub fn session(session_id: &'a str) -> Self {
+        Self::Session {
+            session_id: Cow::Borrowed(session_id),
+        }
+    }
+
+    pub fn file(id: &'a str, name: &'a str) -> Self {
+        Self::File {
+            session_or_saved_id: Cow::Borrowed(id),
+            name: Cow::Borrowed(name),
         }
     }
 }
@@ -133,7 +153,32 @@ pub trait KeyLike: Debug {
 
 impl KeyLike for Key<'_> {
     fn render_key(&self) -> Cow<'_, [u8]> {
-        serde_json::to_vec(self).expect("<inject::db::Key:: as KeyLike>::render_key should always be able to serde_json::to_vec itself").into()
+        use std::io::Write;
+        let mut out = vec![];
+
+        match self {
+            Key::SessionCounter => {
+                write!(&mut out, "SessionCounter").unwrap();
+            }
+            Key::SessionIndex { index } => {
+                write!(&mut out, "SessionIndex::").unwrap();
+                out.write_all(&index.to_be_bytes()).unwrap();
+            }
+            Key::Session { session_id } => {
+                write!(&mut out, "Session::{}", session_id).unwrap();
+            }
+            Key::File {
+                session_or_saved_id,
+                name,
+            } => {
+                write!(&mut out, "File::{}::{}", session_or_saved_id, name).unwrap();
+            }
+            Key::Saved { id } => {
+                write!(&mut out, "Saved::{}", id).unwrap();
+            }
+        }
+
+        out.into()
     }
 }
 
@@ -183,13 +228,56 @@ impl IjDb {
             })
     }
 
-    pub fn get_bytes_string(&self, key: &dyn KeyLike) -> DbResult<String> {
+    /// Read the bytes for the specified key and parse it as UTF8. Pairs with [`Self::put_text`].
+    pub fn get_text(&self, key: &dyn KeyLike) -> DbResult<String> {
         let bytes = self.get_bytes(key)?.ok_or_else(|| DbError::KeyNotFound {
             key_debug: key.dbg(),
         })?;
-        String::from_utf8(bytes).map_err(|source| DbError::KeyNotFound {
+        String::from_utf8(bytes).map_err(|_source| DbError::Utf8 {
             key_debug: key.dbg(),
         })
+    }
+
+    /// Store the value in the specified key as UTF8. Pairs with [`Self::get_text`].
+    pub fn put_text(&self, key: &dyn KeyLike, value: &str) -> DbResult<()> {
+        self.db
+            .put(key.render_key(), value)
+            .map_err(|source| DbError::Put {
+                key_debug: key.dbg(),
+                source,
+            })?;
+
+        Ok(())
+    }
+
+    /// Zero-copy version of [`Self::get_text`]. Unclear if this is actually more efficient.
+    /// You can deref or AsRef to get `&str`, e.g.
+    ///
+    /// ```norun
+    /// if let Some(text) = db.get_text_pinned()? {
+    ///   let s: &str = x.as_ref();
+    /// }
+    /// ```
+    pub fn get_text_pinned(
+        &self,
+        key: &dyn KeyLike,
+    ) -> DbResult<Option<OwningRef<Box<rocksdb::DBPinnableSlice<'_>>, str>>> {
+        let res = self.get_bytes_pinned(key);
+        match res {
+            Ok(Some(slice)) => {
+                if std::str::from_utf8(&*slice).is_ok() {
+                    let owning = OwningRef::new(Box::new(slice))
+                        .map(|slice| std::str::from_utf8(slice).unwrap());
+                    Ok(Some(owning))
+                } else {
+                    Err(DbError::Utf8 {
+                        key_debug: key.dbg(),
+                    })
+                }
+            }
+            Ok(None) => Ok(None),
+            Err(err) => Err(err),
+        }
     }
 
     pub fn get_json<T>(&self, key: &dyn KeyLike) -> DbResult<T>
@@ -255,11 +343,11 @@ impl IjDb {
         let existing_key = Key::SessionIndex { index: next };
         match self.get_json::<String>(&existing_key) {
             Ok(session_id) => {
-                let sess_key = Key::Session {
+                let session_key = Key::Session {
                     session_id: Cow::Owned(session_id),
                 };
                 let _r = self.remove_key(&existing_key);
-                let _r = self.remove_key(&sess_key);
+                let _r = self.remove_key(&session_key);
             }
             Err(DbError::DeserializeJson { .. }) => {
                 let _r = self.remove_key(&existing_key);
