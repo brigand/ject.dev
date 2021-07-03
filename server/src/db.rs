@@ -53,26 +53,40 @@ pub enum DbError {
     },
 }
 
-impl DbError {
-    pub fn to_response(&self) -> HttpResponse {
+impl ResponseError for DbError {
+    fn status_code(&self) -> actix_web::http::StatusCode {
         match self {
-            DbError::Open { .. } => HttpResponse::InternalServerError()
-                .json(json!({ "code": "db_open", "message": "Unable to open database" })),
-            DbError::GetKey { .. } => HttpResponse::InternalServerError()
-                .json(json!({ "code": "db_get_key", "message": self.to_string() })),
-            DbError::KeyNotFound { .. } => HttpResponse::NotFound()
-                .json(json!({ "code": "db_key_not_found", "message": self.to_string() })),
-            DbError::Utf8 { .. } => HttpResponse::InternalServerError()
-                .json(json!({ "code": "db_utf8", "message": self.to_string() })),
-            DbError::DeserializeJson { .. } => HttpResponse::InternalServerError()
-                .json(json!({ "code": "db_deser_json", "message": self.to_string() })),
-            DbError::SerializeValue { .. } => HttpResponse::InternalServerError()
-                .json(json!({ "code": "db_ser_value", "message": self.to_string() })),
-            DbError::Put { .. } => HttpResponse::InternalServerError()
-                .json(json!({ "code": "db_put_value", "message": self.to_string() })),
-            DbError::UnableToRemoveKey { .. } => HttpResponse::InternalServerError()
-                .json(json!({ "code": "db_remove_key", "message": self.to_string() })),
+            DbError::KeyNotFound { .. } => StatusCode::NOT_FOUND,
+            _ => StatusCode::INTERNAL_SERVER_ERROR,
         }
+    }
+
+    fn error_response(&self) -> HttpResponse {
+        let message = match self {
+            DbError::Open { .. } => "Unable to open database".to_string(),
+            _ => self.to_string(),
+        };
+
+        HttpResponse::build(self.status_code())
+            .json(json!({ "code":self.code(), "message": message }))
+    }
+}
+
+impl DbError {
+    pub fn code(&self) -> &'static str {
+        match self {
+            DbError::Open { .. } => "db_open",
+            DbError::GetKey { .. } => "db_get_key",
+            DbError::KeyNotFound { .. } => "db_key_not_found",
+            DbError::Utf8 { .. } => "db_utf8",
+            DbError::DeserializeJson { .. } => "db_deser_json",
+            DbError::SerializeValue { .. } => "db_ser_value",
+            DbError::Put { .. } => "db_put_value",
+            DbError::UnableToRemoveKey { .. } => "db_remove_key",
+        }
+    }
+    pub fn to_response(&self) -> HttpResponse {
+        self.error_response()
     }
 }
 
