@@ -1,13 +1,14 @@
 use std::borrow::Cow;
 use std::sync::Arc;
 
-use crate::db;
+use crate::db::{self, DbResult, IjDb, Key};
 use crate::http_error::{ErrorMime, HttpError};
 use crate::js::compile;
 use crate::parser::{parse_html, HtmlPart};
-use crate::state::{FileKind, Session, State};
+use crate::state::{FileKind, Session, SessionMeta, State};
 use crate::DbData;
 use actix_web::{get, post, put, web, HttpResponse, Responder, Scope};
+use db::DbError;
 use serde::Deserialize;
 use serde_json::json;
 
@@ -28,34 +29,42 @@ struct SessionNew {
     session: Session,
 }
 
+fn put_files(db: &IjDb, session_id: &str, session: &Session) -> DbResult<()> {
+    for file in &session.files {
+        let file_name = file.kind.to_default_name();
+        let file_key = Key::file(session_id, file_name);
+        db.put_text(&file_key, &file.contents)?;
+    }
+
+    Ok(())
+}
+
 #[post("/session/new")]
 async fn r_post_session_new(
-    info: web::Json<SessionNew>,
-    // state: web::Data<Arc<State>>,
+    web::Json(SessionNew { session }): web::Json<SessionNew>,
     db: DbData,
-) -> impl Responder {
+) -> Result<HttpResponse, DbError> {
     let session_id = nanoid::nanoid!();
 
-    let session_index = match db.incr_session_counter(SESSION_LIMIT) {
-        Ok(i) => i,
-        Err(err) => return err.to_response(),
-    };
+    let session_index = db.incr_session_counter(SESSION_LIMIT)?;
 
     let si_key = db::Key::SessionIndex {
         index: session_index,
     };
-    if let Err(err) = db.put_json(&si_key, &session_id) {
-        return err.to_response();
-    }
+    db.put_json(&si_key, &session_id)?;
 
     let sess_key = db::Key::Session {
         session_id: Cow::Borrowed(session_id.as_str()),
     };
-    if let Err(err) = db.put_json(&sess_key, &info.0.session) {
-        return err.to_response();
-    }
 
-    HttpResponse::Ok().json(json!({ "session_id": session_id }))
+    put_files(&db, &session_id, &session)?;
+
+    let meta = SessionMeta {
+        file_kinds: vec![FileKind::JavaScript, FileKind::Css, FileKind::Html],
+    };
+    db.put_json(&sess_key, meta)?;
+
+    Ok(HttpResponse::Ok().json(json!({ "session_id": session_id })))
 }
 
 #[derive(Debug, Deserialize)]
@@ -65,90 +74,107 @@ struct SessionUpdate {
 }
 
 #[put("/session")]
-async fn r_put_session(
-    info: web::Json<SessionUpdate>,
-    state: web::Data<Arc<State>>,
-) -> impl Responder {
+async fn r_put_session(info: web::Json<SessionUpdate>, db: DbData) -> db::DbResult<HttpResponse> {
     let SessionUpdate {
         session_id,
         session,
     } = info.0;
 
-    if let Some(mut existing_session) = state.sessions().into_item(&session_id) {
-        *existing_session = session;
-        HttpResponse::Ok().json(json!({}))
-    } else {
-        HttpResponse::UnprocessableEntity().json(json!({
-        "message": "Unknown session_id",
-         "input_session_id": session_id,
-        }))
+    let session_key = Key::session(&session_id);
+    let session_meta = match db.get_json::<SessionMeta>(&session_key) {
+        Err(DbError::KeyNotFound { .. }) => return Ok(HttpResponse::UnprocessableEntity().json(json!({"code": "session_not_found", "message": "Unable to find the specified session", "input_session_id": session_id}))) ,
+        Err(other) => return Err(other),
+        Ok(session_meta) => session_meta
+    };
+
+    let mut kinds = vec![];
+    for file in &session.files {
+        let file_name = file.kind.to_default_name();
+        let file_key = Key::file(&session_id, file_name);
+        db.put_text(&file_key, &file.contents)?;
+        if !kinds.contains(&file.kind) {
+            kinds.push(file.kind);
+        }
     }
+
+    if session_meta.file_kinds != kinds {
+        let new_meta = SessionMeta {
+            file_kinds: kinds,
+            ..session_meta
+        };
+        db.put_json(&session_key, new_meta)?;
+    }
+
+    Ok(HttpResponse::Ok().json(json!({})))
+}
+
+fn try_get_file(
+    db: &IjDb,
+    session_id: &str,
+    err_mime: ErrorMime,
+    file_kind: FileKind,
+) -> Result<String, HttpError> {
+    let session_key = Key::session(&session_id);
+    let _session = db
+        .get_bytes_pinned(&session_key)
+        .map_err(|err| HttpError::db_error(err).with_mime(err_mime))?;
+    let file_key = Key::file(&session_id, file_kind.to_default_name());
+
+    db.get_text(&file_key).map_err(|err| match err {
+        DbError::KeyNotFound { .. } => HttpError::file_not_found(err_mime).with_mime(err_mime),
+        _ => HttpError::db_error(err).with_mime(err_mime),
+    })
 }
 
 #[get("/session/{session_id}/page.js")]
 async fn r_get_session_page_js(
     info: web::Path<String>,
-    state: web::Data<Arc<State>>,
-) -> impl Responder {
+    db: DbData,
+) -> Result<HttpResponse, HttpError> {
     let session_id = info.0;
     let err_mime = ErrorMime::JavaScript;
-    let js = match state.sessions().into_item(&session_id) {
-        None => return HttpError::session_not_found(err_mime).to_response(err_mime),
-        Some(session) => match session.file(FileKind::JavaScript) {
-            None => return HttpError::file_not_found(err_mime).to_response(err_mime),
-            Some(css) => css.clone(),
-        },
-    };
+    let code = try_get_file(&db, &session_id, err_mime, FileKind::JavaScript)?;
 
-    match compile(js.contents) {
+    Ok(match compile(code) {
         Ok(js) => HttpResponse::Ok()
             .header("content-type", "application/javascript; charset=utf-8")
             .body(js),
         Err(err) => HttpError::js_compile_fail(err).to_response(err_mime),
-    }
+    })
 }
 
 #[get("/session/{session_id}/page.css")]
 async fn r_get_session_page_css(
     info: web::Path<String>,
-    state: web::Data<Arc<State>>,
-) -> impl Responder {
+    db: DbData,
+) -> Result<HttpResponse, HttpError> {
     let session_id = info.0;
     let err_mime = ErrorMime::Css;
-    let css = match state.sessions().into_item(&session_id) {
-        None => return HttpError::session_not_found(err_mime).to_response(err_mime),
-        Some(session) => match session.file(FileKind::Css) {
-            None => return HttpError::file_not_found(err_mime).to_response(err_mime),
-            Some(css) => css.clone(),
-        },
-    };
+    let code = try_get_file(&db, &session_id, err_mime, FileKind::Css)?;
 
-    HttpResponse::Ok()
+    Ok(HttpResponse::Ok()
         .header("content-type", "text/css; charset=utf-8")
-        .body(css.contents)
+        .body(code))
 }
 
 #[get("/session/{session_id}/page")]
-async fn r_get_session_page(info: web::Path<String>, state: web::Data<Arc<State>>) -> HttpResponse {
+async fn r_get_session_page(
+    info: web::Path<String>,
+    db: DbData,
+) -> Result<HttpResponse, HttpError> {
     let err_mime = ErrorMime::Html;
     let session_id = info.0;
-    let html = match state.sessions().into_item(&session_id) {
-        None => return HttpError::session_not_found(err_mime).to_response(err_mime),
-        Some(session) => match session.file(FileKind::Html) {
-            None => return HttpError::file_not_found(err_mime).to_response(err_mime),
-            Some(html) => html.clone(),
-        },
-    };
+    let html = try_get_file(&db, &session_id, err_mime, FileKind::Html)?;
 
-    let parts = match parse_html(&html.contents) {
+    let parts = match parse_html(&html) {
         Ok(parts) => parts,
-        Err(err) => return HttpError::invalid_html(err).to_response(err_mime),
+        Err(err) => return Err(HttpError::invalid_html(err).with_mime(err_mime)),
     };
 
     let page_url = |suffix: &str| format!("/api/session/{}/page{}", session_id, suffix);
 
     let html = parts.into_iter().try_fold(
-        String::with_capacity(html.contents.len()),
+        String::with_capacity(html.len()),
         |mut out, part| {
             match part {
                 HtmlPart::Literal(literal) => out.push_str(literal),
@@ -169,10 +195,10 @@ async fn r_get_session_page(info: web::Path<String>, state: web::Data<Arc<State>
     );
 
     match html {
-        Ok(html) => HttpResponse::Ok()
+        Ok(html) => Ok(HttpResponse::Ok()
             .header("content-type", "text/html; charset=utf-8")
-            .body(html),
-        Err(err) => HttpError::generate_html_fail(err).to_response(err_mime),
+            .body(html)),
+        Err(err) => Err(HttpError::generate_html_fail(err).with_mime(err_mime)),
     }
 }
 

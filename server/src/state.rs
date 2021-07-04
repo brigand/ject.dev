@@ -15,6 +15,22 @@ pub enum FileKind {
     Text,
 }
 
+impl FileKind {
+    pub fn to_default_name(self) -> &'static str {
+        match self {
+            FileKind::JavaScript => "page.js",
+            FileKind::Css => "page.css",
+            FileKind::Html => "page.html",
+            FileKind::Text => "page.txt",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionMeta {
+    pub file_kinds: Vec<FileKind>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct File {
     pub kind: FileKind,
