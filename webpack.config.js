@@ -1,8 +1,8 @@
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 
-module.exports = {
-  mode: 'development',
+module.exports = (env, argv) => ({
+  mode: argv.mode || 'development',
   entry: {
     app: './src/index.js',
     'editor.worker': 'monaco-editor/esm/vs/editor/editor.worker.js',
@@ -46,4 +46,4 @@ module.exports = {
       },
     ],
   },
-};
+});
