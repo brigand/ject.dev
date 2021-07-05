@@ -6,7 +6,7 @@ use crate::http_error::{ErrorMime, HttpError};
 use crate::js::compile;
 use crate::parser::{parse_html, HtmlPart};
 use crate::state::{FileKind, Session, SessionMeta, State};
-use crate::DbData;
+use crate::{ids, DbData};
 use actix_web::{get, post, put, web, HttpResponse, Responder, Scope};
 use db::DbError;
 use serde::Deserialize;
@@ -29,6 +29,11 @@ struct SessionNew {
     session: Session,
 }
 
+#[derive(Debug, Deserialize)]
+struct Save {
+    session_id: String,
+}
+
 fn put_files(db: &IjDb, session_id: &str, session: &Session) -> DbResult<()> {
     for file in &session.files {
         let file_name = file.kind.to_default_name();
@@ -39,12 +44,22 @@ fn put_files(db: &IjDb, session_id: &str, session: &Session) -> DbResult<()> {
     Ok(())
 }
 
+#[post("/save")]
+async fn r_post_save(
+    web::Json(Save { session_id }): web::Json<Save>,
+    db: DbData,
+) -> Result<HttpResponse, DbError> {
+    let save_id = ids::make_save_id();
+
+    Ok(HttpResponse::Ok().json(json!({ "save_id": save_id })))
+}
+
 #[post("/session/new")]
 async fn r_post_session_new(
     web::Json(SessionNew { session }): web::Json<SessionNew>,
     db: DbData,
 ) -> Result<HttpResponse, DbError> {
-    let session_id = nanoid::nanoid!();
+    let session_id = ids::make_session_id();
 
     let session_index = db.incr_session_counter(SESSION_LIMIT)?;
 
@@ -139,7 +154,11 @@ async fn r_get_session_page_js(
         Ok(js) => HttpResponse::Ok()
             .header("content-type", "application/javascript; charset=utf-8")
             .body(js),
-        Err(err) => HttpError::js_compile_fail(err).to_response(err_mime),
+        Err(err) => {
+            println!("compile error: {:?}", err);
+            println!("compile error root cause: {:?}", err.source());
+            HttpError::js_compile_fail(err).to_response(err_mime)
+        }
     })
 }
 
@@ -158,7 +177,7 @@ async fn r_get_session_page_css(
 }
 
 #[get("/session/{session_id}/page")]
-async fn r_get_session_page(
+async fn r_get_session_page_html(
     info: web::Path<String>,
     db: DbData,
 ) -> Result<HttpResponse, HttpError> {
@@ -173,6 +192,7 @@ async fn r_get_session_page(
 
     let page_url = |suffix: &str| format!("/api/session/{}/page{}", session_id, suffix);
 
+    // TODO: perform searches like https://api.cdnjs.com/libraries?search=jquery&limit=1 to allow arbitrary cdnjs deps
     let html = parts.into_iter().try_fold(
         String::with_capacity(html.len()),
         |mut out, part| {
@@ -182,6 +202,7 @@ async fn r_get_session_page(
                     &["urls", "js"] => out.push_str(&page_url(".js")),
                     &["urls", "css"] => out.push_str(&page_url(".css")),
                     &["deps", "react"] => out.push_str(r#"<script src="https://cdnjs.cloudflare.com/ajax/libs/react/17.0.2/umd/react.development.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.0.0-alpha-568dc3532/umd/react-dom.development.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>"#),
+                    &["deps", "jquery"] => out.push_str(r#"<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>"#),
                     &["urls", other] => {
                         anyhow::bail!("Unexpected second segment in inject(urls.{})", other)
                     }
@@ -205,9 +226,10 @@ async fn r_get_session_page(
 pub fn service() -> Scope {
     web::scope("/api")
         .service(r_health)
+        .service(r_post_save)
         .service(r_post_session_new)
         .service(r_put_session)
         .service(r_get_session_page_js)
         .service(r_get_session_page_css)
-        .service(r_get_session_page)
+        .service(r_get_session_page_html)
 }

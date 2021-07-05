@@ -23,6 +23,8 @@ function defaultFiles() {
     <meta charset="utf-8" />
     <link rel="stylesheet" href="inject!(urls.css)" />
 
+    <!-- inject!(deps.react) -->
+    <!-- inject!(deps.jquery) -->
   </head>
 
   <body>
