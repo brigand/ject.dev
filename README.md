@@ -8,8 +8,7 @@ Prerequisites:
 Add the following two entries to /etc/hosts:
 
 ```
-127.0.0.1 enject.org.local
-127.0.0.1 ject.link.local
+127.0.0.1 enject.org.local ject.link.local
 ```
 
 Start webpack's server in one terminal tab/pane:
