@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::sync::Arc;
 
+use crate::cdn::cdnjs_script;
 use crate::db::{self, DbResult, IjDb, Key};
 use crate::http_error::{ErrorMime, HttpError};
 use crate::js::compile;
@@ -193,16 +194,23 @@ async fn r_get_session_page_html(
     let page_url = |suffix: &str| format!("/api/session/{}/page{}", session_id, suffix);
 
     // TODO: perform searches like https://api.cdnjs.com/libraries?search=jquery&limit=1 to allow arbitrary cdnjs deps
-    let html = parts.into_iter().try_fold(
-        String::with_capacity(html.len()),
-        |mut out, part| {
+    let html = parts
+        .into_iter()
+        .try_fold(String::with_capacity(html.len()), |mut out, part| {
             match part {
                 HtmlPart::Literal(literal) => out.push_str(literal),
                 HtmlPart::IncludePath(path) => match &path[..] {
                     &["urls", "js"] => out.push_str(&page_url(".js")),
                     &["urls", "css"] => out.push_str(&page_url(".css")),
-                    &["deps", "react"] => out.push_str(r#"<script src="https://cdnjs.cloudflare.com/ajax/libs/react/17.0.2/umd/react.development.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.0.0-alpha-568dc3532/umd/react-dom.development.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>"#),
-                    &["deps", "jquery"] => out.push_str(r#"<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>"#),
+                    &["deps", "react"] => {
+                        out.push_str(&cdnjs_script("react/17.0.2/umd/react.development.min.js"));
+                        out.push_str(&cdnjs_script(
+                            "react-dom/17.0.2/umd/react-dom.development.min.js",
+                        ));
+                    }
+                    &["deps", "jquery"] => {
+                        out.push_str(&cdnjs_script("jquery/3.6.0/jquery.min.js"));
+                    }
                     &["urls", other] => {
                         anyhow::bail!("Unexpected second segment in inject(urls.{})", other)
                     }
@@ -212,8 +220,7 @@ async fn r_get_session_page_html(
             }
 
             Ok(out)
-        },
-    );
+        });
 
     match html {
         Ok(html) => Ok(HttpResponse::Ok()
