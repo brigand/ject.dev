@@ -1,5 +1,6 @@
 import React from 'react';
 // import pt from 'prop-types';
+import styled from '@emotion/styled';
 import Editor from './Editor';
 import QuadSplit from './QuadSplit';
 import PageFrame from './PageFrame';
@@ -47,6 +48,10 @@ function defaultFiles() {
   ];
 }
 
+const MenuItem = styled.div`
+  font-size: 1.3em;
+`;
+
 function MainPage() {
   const [resize] = React.useState(() => new EventType());
   const session = React.useRef({ files: defaultFiles() });
@@ -67,11 +72,30 @@ function MainPage() {
       }}
       center={() => (
         <RadialMenu>
-          <div>A</div>
-          <div>B</div>
-          <div>C</div>
-          <div>D</div>
-          <div>E</div>
+          <MenuItem
+            style={{ color: 'var(--green)' }}
+            onClick={() => console.log('TODO: Save')}
+          >
+            <span>Save</span>
+          </MenuItem>
+          <MenuItem
+            style={{ color: 'var(--yellow)' }}
+            onClick={() => console.log('TODO: Open About Page')}
+          >
+            <span>About</span>
+          </MenuItem>
+          <MenuItem
+            style={{ color: 'var(--cyan)' }}
+            onClick={() => console.log('TODO: Open Github')}
+          >
+            <span>Source</span>
+          </MenuItem>
+          <MenuItem
+            style={{ color: 'var(--blue)' }}
+            onClick={() => console.log('TODO: prompt to add dependency')}
+          >
+            <span>+ Dep</span>
+          </MenuItem>
         </RadialMenu>
       )}
     >

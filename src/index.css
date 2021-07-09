@@ -1,7 +1,19 @@
 :root {
   /* https://github.com/EliverLara/Andromeda/blob/master/themes/Andromeda-color-theme.json#L66-L67 */
   --ij-bg: #23262e;
+  --ij-bg-alt: #353944;
+  --ij-bg-alt-2: #2c3244;
   --ij-fg: #d5ced9;
+
+  --cyan: #00e8c6;
+  --orange: #f39c12;
+  --yellow: #ffe66d;
+  --pink: #ff00aa;
+  --hot-pink: #f92672;
+  --purple: #c74ded;
+  --blue: #7cb7ff;
+  --red: #ee5d43;
+  --green: #96e072;
 }
 
 html {
