@@ -182,7 +182,7 @@ function useSplits(resize) {
         resize.emit();
       });
     }
-  }, sizing);
+  }, [sizing]);
 
   return { x, y1, y2 };
 }
@@ -205,7 +205,7 @@ const QuadBox = styled(Row)`
 
 const Center = styled.aside`
   position: absolute;
-  top: ${(props) => props.x * 100 + '%'};
+  top: ${(props) => props.y * 100 + '%'};
   left: ${(props) => props.x * 100 + '%'};
   transform: translate(-50%, -50%);
   z-index: 1000;
