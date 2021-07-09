@@ -203,6 +203,14 @@ const QuadBox = styled(Row)`
   }
 `;
 
+const Center = styled.aside`
+  position: absolute;
+  top: ${(props) => props.x * 100 + '%'};
+  left: ${(props) => props.x * 100 + '%'};
+  transform: translate(-50%, -50%);
+  z-index: 1000;
+`;
+
 function QuadSplit(props) {
   const splits = useSplits(props.resize);
   const { children } = props;
@@ -215,6 +223,11 @@ function QuadSplit(props) {
       `QuadSplit: Expected props.children.length to be 4 but got ${props.children.length}`,
     );
   }
+
+  const centerX = splits.x.value;
+  const diff1 = Math.abs(splits.y1.value - 0.5);
+  const diff2 = Math.abs(splits.y2.value - 0.5);
+  const centerY = diff1 < diff2 ? splits.y1.value : splits.y2.value;
 
   return (
     <QuadBox
@@ -240,6 +253,12 @@ function QuadSplit(props) {
         {splits.y2.divider}
       </Col2>
       {splits.x.divider}
+
+      {props.center && (
+        <Center x={centerX} y={centerY}>
+          {props.center()}
+        </Center>
+      )}
     </QuadBox>
   );
 }
@@ -248,6 +267,7 @@ QuadSplit.propTypes = {
   resize: pt.instanceOf(EventType).isRequired,
   children: pt.arrayOf(pt.node).isRequired,
   onSubmit: pt.func,
+  center: pt.func,
 };
 
 export default QuadSplit;

@@ -3,6 +3,7 @@ import React from 'react';
 import Editor from './Editor';
 import QuadSplit from './QuadSplit';
 import PageFrame from './PageFrame';
+import RadialMenu from './RadialMenu';
 import { EventType } from '../EventType';
 import { useAsync } from 'react-use';
 import * as api from '../api';
@@ -64,6 +65,15 @@ function MainPage() {
           setSubmitCount((c) => c + 1);
         });
       }}
+      center={() => (
+        <RadialMenu>
+          <div>A</div>
+          <div>B</div>
+          <div>C</div>
+          <div>D</div>
+          <div>E</div>
+        </RadialMenu>
+      )}
     >
       <>
         {/* {'value:' + createSession.value} */}
