@@ -274,7 +274,19 @@ async fn r_get_session_page_html(
 
     match html {
         Ok(html) => Ok(HttpResponse::Ok()
+            // Based on jsfiddle's result frame http response
             .header("content-type", "text/html; charset=utf-8")
+            .header("cache-control", "max-age=0, private, must-revalidate")
+            .header("referrer-policy", "strict-origin-when-cross-origin")
+            // Other maybe useful headers from that response:
+            // x-frame-options: ALLOWALL
+            // x-xss-protection: 0
+            // x-content-type-options: nosniff
+            // x-download-options: noopen
+            // x-permitted-cross-domain-policies: none
+            // set-cookie: csrftoken={long string}; path=/
+            // vary: Origin
+            // X-Firefox-Spdy: h2
             .body(html)),
         Err(err) => Err(HttpError::generate_html_fail(err).with_mime(err_mime)),
     }
