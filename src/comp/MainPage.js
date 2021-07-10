@@ -67,8 +67,18 @@ function MainPage() {
   }, []);
 
   events.run.use(() => {
+    console.log('Running');
     api.updateSession(createSession.value, session.current).then(() => {
       setSubmitCount((c) => c + 1);
+    });
+  });
+
+  events.save.use(() => {
+    console.log('Saving');
+    api.save(session.current).then(({ save_id }) => {
+      const url = new URL(window.location);
+      url.searchParams.set('id', save_id);
+      window.history.pushState({}, '', url);
     });
   });
 
@@ -80,7 +90,7 @@ function MainPage() {
         <RadialMenu>
           <MenuItem
             style={{ color: 'var(--green)' }}
-            onClick={() => console.log('TODO: Save')}
+            onClick={() => events.save.emit()}
           >
             <span>Save</span>
           </MenuItem>

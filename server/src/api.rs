@@ -32,7 +32,7 @@ struct SessionNew {
 
 #[derive(Debug, Deserialize)]
 struct Save {
-    session_id: String,
+    session: Session,
 }
 
 fn put_files(db: &IjDb, session_id: &str, session: &Session) -> DbResult<()> {
@@ -47,10 +47,22 @@ fn put_files(db: &IjDb, session_id: &str, session: &Session) -> DbResult<()> {
 
 #[post("/save")]
 async fn r_post_save(
-    web::Json(Save { session_id }): web::Json<Save>,
+    web::Json(Save { session }): web::Json<Save>,
     db: DbData,
 ) -> Result<HttpResponse, DbError> {
     let save_id = ids::make_save_id();
+
+    put_files(&db, &save_id, &session)?;
+
+    let save_key = db::Key::Saved {
+        id: Cow::Borrowed(save_id.as_str()),
+    };
+
+    let meta = SessionMeta {
+        file_kinds: vec![FileKind::JavaScript, FileKind::Css, FileKind::Html],
+    };
+
+    db.put_json(&save_key, meta)?;
 
     Ok(HttpResponse::Ok().json(json!({ "save_id": save_id })))
 }

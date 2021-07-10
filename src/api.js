@@ -41,3 +41,7 @@ export async function createSession(session) {
 export async function updateSession(session_id, session) {
   return fetch2(`/api/session`, { method: 'PUT', json: { session_id, session } });
 }
+
+export async function save(session) {
+  return fetch2(`/api/save`, { method: 'POST', json: { session } });
+}

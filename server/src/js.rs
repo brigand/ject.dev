@@ -7,23 +7,12 @@ use swc::config::JscConfig;
 use swc::config::JscTarget;
 use swc::config::Options;
 use swc::config::SourceMapsConfig;
-use swc_common::errors::emitter::Emitter;
 use swc_common::errors::emitter::EmitterWriter;
 use swc_common::errors::Handler;
 use swc_common::FileName;
 use swc_common::SourceMap;
 use swc_ecma_parser::EsConfig;
 use swc_ecma_parser::Syntax;
-
-struct VoidEmit;
-
-impl Emitter for VoidEmit {
-    fn emit(&mut self, db: &swc_common::errors::DiagnosticBuilder<'_>) {}
-
-    fn should_show_explain(&self) -> bool {
-        false
-    }
-}
 
 #[derive(Debug, Default, Clone)]
 struct MemWrite(Arc<Mutex<Vec<u8>>>);
