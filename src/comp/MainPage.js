@@ -32,6 +32,7 @@ function defaultFiles() {
   <body>
     <div id="root"></div>
     <script src="inject!(urls.js)"></script>
+    <!-- <script type="module" src="inject!(urls.js.raw)"></script> -->
   </body>
 </html>
 `,
