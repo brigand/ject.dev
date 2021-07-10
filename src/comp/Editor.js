@@ -123,6 +123,34 @@ function Editor(props) {
       },
     });
 
+    // Ref: https://microsoft.github.io/monaco-editor/playground.html#interacting-with-the-editor-adding-an-action-to-an-editor-instance
+    // Ref: https://microsoft.github.io/monaco-editor/api/enums/monaco.keycode.html
+    ed.addAction({
+      id: 'inject-save',
+
+      // A label of the action that will be presented to the user.
+      label: 'Save',
+
+      // An optional array of keybindings for the action.
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_S],
+      contextMenuGroupId: 'navigation',
+      contextMenuOrder: 1.5,
+      run: function () {
+        props.events.save.emit();
+      },
+    });
+
+    ed.addAction({
+      id: 'inject-run',
+      label: 'Run',
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter],
+      contextMenuGroupId: 'navigation',
+      contextMenuOrder: 1.5,
+      run: function () {
+        props.events.run.emit();
+      },
+    });
+
     ed.onDidChangeModelContent(() => {
       const value = ed.getModel().getValue();
       props.onChange(value);
@@ -131,7 +159,7 @@ function Editor(props) {
     editorRef.current = ed;
   };
 
-  props.resize.use(() => {
+  props.events.resize.use(() => {
     if (editorRef.current) {
       editorRef.current.layout();
     }
@@ -161,12 +189,16 @@ function Editor(props) {
 
 Editor.propTypes = {
   onChange: pt.func,
-  resize: pt.instanceOf(EventType),
   language: pt.string.isRequired,
   value: pt.shape({
     contents: pt.string.isRequired,
     version: pt.number.isRequired,
   }).isRequired,
+  events: pt.shape({
+    resize: pt.instanceOf(EventType).isRequired,
+    save: pt.instanceOf(EventType).isRequired,
+    run: pt.instanceOf(EventType).isRequired,
+  }),
 };
 
 export default Editor;

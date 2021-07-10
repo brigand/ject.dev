@@ -53,7 +53,11 @@ const MenuItem = styled.div`
 `;
 
 function MainPage() {
-  const [resize] = React.useState(() => new EventType());
+  const [events] = React.useState(() => ({
+    resize: new EventType(),
+    save: new EventType(),
+    run: new EventType(),
+  }));
   const session = React.useRef({ files: defaultFiles() });
   const [submitCount, setSubmitCount] = React.useState(1);
 
@@ -62,14 +66,16 @@ function MainPage() {
     return session_id;
   }, []);
 
+  events.run.use(() => {
+    api.updateSession(createSession.value, session.current).then(() => {
+      setSubmitCount((c) => c + 1);
+    });
+  });
+
   return (
     <QuadSplit
-      resize={resize}
-      onSubmit={() => {
-        api.updateSession(createSession.value, session.current).then(() => {
-          setSubmitCount((c) => c + 1);
-        });
-      }}
+      resize={events.resize}
+      onSubmit={() => {}}
       center={() => (
         <RadialMenu>
           <MenuItem
@@ -77,6 +83,12 @@ function MainPage() {
             onClick={() => console.log('TODO: Save')}
           >
             <span>Save</span>
+          </MenuItem>
+          <MenuItem
+            style={{ color: 'var(--purple)' }}
+            onClick={() => events.run.emit()}
+          >
+            <span>Run</span>
           </MenuItem>
           <MenuItem
             style={{ color: 'var(--yellow)' }}
@@ -102,7 +114,7 @@ function MainPage() {
       <>
         {/* {'value:' + createSession.value} */}
         <Editor
-          resize={resize}
+          events={events}
           language="html"
           onChange={(value) => {
             session.current = {
@@ -117,7 +129,7 @@ function MainPage() {
       </>
       <>
         <Editor
-          resize={resize}
+          events={events}
           language="typescript"
           onChange={(value) => {
             session.current = {
@@ -133,7 +145,7 @@ function MainPage() {
       <>
         {/* {'value:' + createSession.value} */}
         <Editor
-          resize={resize}
+          events={events}
           language="css"
           onChange={(value) => {
             session.current = {
@@ -154,7 +166,7 @@ function MainPage() {
         ) : createSession.value ? (
           <PageFrame
             sessionId={createSession.value}
-            resize={resize}
+            resize={events.resize}
             key={submitCount}
           />
         ) : (
