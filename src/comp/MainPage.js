@@ -53,6 +53,8 @@ const MenuItem = styled.div`
   font-size: 1.3em;
 `;
 
+const initialSaveId = new URL(window.location).searchParams.get('saved') || null;
+
 function MainPage() {
   const [events] = React.useState(() => ({
     resize: new EventType(),
@@ -62,10 +64,29 @@ function MainPage() {
   const session = React.useRef({ files: defaultFiles() });
   const [submitCount, setSubmitCount] = React.useState(1);
 
+  const loadSave = useAsync(async () => {
+    if (!initialSaveId) return null;
+    const initial = await api.getSaved(initialSaveId);
+    return initial;
+  }, []);
+
   const createSession = useAsync(async () => {
+    if (initialSaveId) {
+      if (loadSave.value) {
+        const version =
+          Math.max(...session.current.files.map((file) => file.version || 1)) + 1;
+        const next = loadSave.value;
+        session.current = {
+          ...next,
+          files: next.files.map((file) => ({ ...file, version })),
+        };
+      } else if (loadSave.loading) {
+        return null;
+      }
+    }
     const { session_id } = await api.createSession(session.current);
     return session_id;
-  }, []);
+  }, [loadSave.value, loadSave.error]);
 
   events.run.use(() => {
     console.log('Running');
@@ -78,10 +99,14 @@ function MainPage() {
     console.log('Saving');
     api.save(session.current).then(({ save_id }) => {
       const url = new URL(window.location);
-      url.searchParams.set('id', save_id);
+      url.searchParams.set('saved', save_id);
       window.history.pushState({}, '', url);
     });
   });
+
+  if (!createSession.value) {
+    return null;
+  }
 
   return (
     <QuadSplit
