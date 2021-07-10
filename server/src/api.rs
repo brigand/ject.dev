@@ -175,6 +175,20 @@ async fn r_get_session_page_js(
     })
 }
 
+#[get("/session/{session_id}/page.js.raw")]
+async fn r_get_session_page_js_raw(
+    info: web::Path<String>,
+    db: DbData,
+) -> Result<HttpResponse, HttpError> {
+    let session_id = info.0;
+    let err_mime = ErrorMime::JavaScript;
+    let code = try_get_file(&db, &session_id, err_mime, FileKind::JavaScript)?;
+
+    Ok(HttpResponse::Ok()
+        .header("content-type", "application/javascript; charset=utf-8")
+        .body(code))
+}
+
 #[get("/session/{session_id}/page.css")]
 async fn r_get_session_page_css(
     info: web::Path<String>,
@@ -213,6 +227,7 @@ async fn r_get_session_page_html(
                 HtmlPart::Literal(literal) => out.push_str(literal),
                 HtmlPart::IncludePath(path) => match &path[..] {
                     &["urls", "js"] => out.push_str(&page_url(".js")),
+                    &["urls", "js", "raw"] => out.push_str(&page_url(".js.raw")),
                     &["urls", "css"] => out.push_str(&page_url(".css")),
                     &["deps", "react"] => {
                         out.push_str(&cdnjs_script("react/17.0.2/umd/react.development.min.js"));
@@ -249,6 +264,7 @@ pub fn service() -> Scope {
         .service(r_post_session_new)
         .service(r_put_session)
         .service(r_get_session_page_js)
+        .service(r_get_session_page_js_raw)
         .service(r_get_session_page_css)
         .service(r_get_session_page_html)
 }
