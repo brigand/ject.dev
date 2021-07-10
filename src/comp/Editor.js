@@ -57,6 +57,13 @@ monaco.languages.typescript.typescriptDefaults.addExtraLib(
 );
 
 monaco.languages.typescript.typescriptDefaults.addExtraLib(
+  `
+declare var root: HTMLDivElement;
+  `.trim(),
+  'node_modules/@types/inject-client/index.d.ts',
+);
+
+monaco.languages.typescript.typescriptDefaults.addExtraLib(
   require('!raw-loader!@types/react-dom/index.d.ts').default,
   'node_modules/@types/react-dom/index.d.ts',
 );
