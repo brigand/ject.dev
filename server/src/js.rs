@@ -53,12 +53,15 @@ pub fn compile(js: String) -> anyhow::Result<String> {
     let options = Options {
         config: Config {
             source_maps: Some(SourceMapsConfig::Str("inline".into())),
+            module: Some(swc::config::ModuleConfig::Es6),
             jsc: JscConfig {
                 syntax: Some(Syntax::Es(EsConfig {
                     jsx: true,
                     optional_chaining: true,
                     nullish_coalescing: true,
                     num_sep: true,
+                    // dynamic_import: true,
+                    // top_level_await: true,
                     ..Default::default()
                 })),
                 target: Some(JscTarget::Es2020),
