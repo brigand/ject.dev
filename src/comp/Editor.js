@@ -133,8 +133,8 @@ function Editor(props) {
 
       // An optional array of keybindings for the action.
       keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_S],
-      contextMenuGroupId: 'navigation',
-      contextMenuOrder: 1.5,
+      contextMenuGroupId: 'custom',
+      contextMenuOrder: 10,
       run: function () {
         props.events.save.emit();
       },
@@ -144,8 +144,8 @@ function Editor(props) {
       id: 'inject-run',
       label: 'Run',
       keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter],
-      contextMenuGroupId: 'navigation',
-      contextMenuOrder: 1.5,
+      contextMenuGroupId: 'custom',
+      contextMenuOrder: 10.1,
       run: function () {
         props.events.run.emit();
       },
