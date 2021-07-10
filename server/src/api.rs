@@ -6,7 +6,7 @@ use crate::db::{self, DbResult, IjDb, Key};
 use crate::http_error::{ErrorMime, HttpError};
 use crate::js::compile;
 use crate::parser::{parse_html, HtmlPart};
-use crate::state::{FileKind, Session, SessionMeta, State};
+use crate::state::{File, FileKind, Session, SessionMeta, State};
 use crate::{ids, DbData};
 use actix_web::{get, post, put, web, HttpResponse, Responder, Scope};
 use db::DbError;
@@ -43,6 +43,29 @@ fn put_files(db: &IjDb, session_id: &str, session: &Session) -> DbResult<()> {
     }
 
     Ok(())
+}
+
+#[get("/saved/{save_id}")]
+async fn r_get_saved(info: web::Path<String>, db: DbData) -> Result<HttpResponse, DbError> {
+    let save_id = info.0.as_str();
+    let save_key = db::Key::Saved {
+        id: Cow::Borrowed(save_id),
+    };
+
+    let meta: SessionMeta = db.get_json(&save_key)?;
+
+    let mut files = vec![];
+    for file_kind in &meta.file_kinds {
+        let file_name = file_kind.to_default_name();
+        let file_key = Key::file(save_id, file_name);
+        let contents = db.get_text(&file_key)?;
+        let file = File::new(*file_kind, contents);
+        files.push(file);
+    }
+
+    let session = Session { files };
+
+    Ok(HttpResponse::Ok().json(session))
 }
 
 #[post("/save")]
@@ -260,6 +283,7 @@ async fn r_get_session_page_html(
 pub fn service() -> Scope {
     web::scope("/api")
         .service(r_health)
+        .service(r_get_saved)
         .service(r_post_save)
         .service(r_post_session_new)
         .service(r_put_session)

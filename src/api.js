@@ -45,3 +45,7 @@ export async function updateSession(session_id, session) {
 export async function save(session) {
   return fetch2(`/api/save`, { method: 'POST', json: { session } });
 }
+
+export async function getSaved(save_id) {
+  return fetch2(`/api/saved/${encodeURIComponent(save_id)}`, { method: 'GET' });
+}

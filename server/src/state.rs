@@ -37,6 +37,12 @@ pub struct File {
     pub contents: String,
 }
 
+impl File {
+    pub fn new(kind: FileKind, contents: String) -> Self {
+        Self { kind, contents }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Session {
     pub files: Vec<File>,
