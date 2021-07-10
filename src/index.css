@@ -5,15 +5,15 @@
   --ij-bg-alt-2: #2c3244;
   --ij-fg: #d5ced9;
 
-  --cyan: #00e8c6;
-  --orange: #f39c12;
-  --yellow: #ffe66d;
+  --purple: #c74ded;
   --pink: #ff00aa;
   --hot-pink: #f92672;
-  --purple: #c74ded;
-  --blue: #7cb7ff;
   --red: #ee5d43;
+  --orange: #f39c12;
+  --yellow: #ffe66d;
   --green: #96e072;
+  --cyan: #00e8c6;
+  --blue: #7cb7ff;
 }
 
 html {
