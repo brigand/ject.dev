@@ -8,6 +8,11 @@ import RadialMenu from './RadialMenu';
 import { EventType } from '../EventType';
 import { useAsync } from 'react-use';
 import * as api from '../api';
+let { INJECT_DOMAIN_MAIN, INJECT_DOMAIN_FRAME } = process.env;
+if (location.hostname === `${INJECT_DOMAIN_MAIN}.local`) {
+  INJECT_DOMAIN_MAIN += '.local';
+  INJECT_DOMAIN_FRAME += '.local';
+}
 
 function defaultFiles() {
   return [
@@ -201,6 +206,7 @@ function MainPage() {
           'Failed to create session'
         ) : createSession.value ? (
           <PageFrame
+            host={INJECT_DOMAIN_FRAME}
             sessionId={createSession.value}
             resize={events.resize}
             key={submitCount}

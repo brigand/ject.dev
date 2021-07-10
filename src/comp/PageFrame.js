@@ -28,12 +28,17 @@ function PageFrame(props) {
     return <div ref={ref} />;
   }
 
+  const url = new URL(
+    `${location.origin}/api/session/${encodeURIComponent(props.sessionId)}/page`,
+  );
+  url.hostname = props.host;
+
   return (
     <iframe
       ref={ref}
       width={frameSize.width}
       height={frameSize.height}
-      src={`/api/session/${encodeURIComponent(props.sessionId)}/page`}
+      src={url.toString()}
       allow="allow-modals allow-forms allow-scripts allow-same-origin allow-popups allow-top-navigation-by-user-activation allow-downloads"
       allowFullScreen
       frameBorder="0"
@@ -44,6 +49,7 @@ function PageFrame(props) {
 PageFrame.propTypes = {
   resize: pt.instanceOf(EventType).isRequired,
   sessionId: pt.string.isRequired,
+  host: pt.string.isRequired,
 };
 
 export default PageFrame;

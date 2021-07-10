@@ -1,7 +1,9 @@
 const path = require('path');
+const { inspect } = require('util');
+const { DefinePlugin } = require('webpack');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 
-module.exports = (env, argv) => ({
+module.exports = defineConfig((env, argv) => ({
   mode: argv.mode || 'development',
   entry: {
     app: './src/index.js',
@@ -25,6 +27,13 @@ module.exports = (env, argv) => ({
     new HtmlWebpackPlugin({
       template: 'src/index.html',
     }),
+    new DefinePlugin({
+      'process.env': {
+        NODE_ENV: JSON.stringify(argv.mode || 'development'),
+        INJECT_DOMAIN_MAIN: JSON.stringify('enject.org'),
+        INJECT_DOMAIN_FRAME: JSON.stringify('ject.link'),
+      },
+    }),
   ],
   module: {
     rules: [
@@ -46,4 +55,17 @@ module.exports = (env, argv) => ({
       },
     ],
   },
-});
+}));
+
+function defineConfig(factory) {
+  if (process.env.DEBUG_WEBPACK) {
+    return (...args) => {
+      console.log(`Webpack config arguments`, ...args);
+      const result = factory(...args);
+      console.log(inspect(result, { depth: 7 }));
+      return result;
+    };
+  } else {
+    return factory;
+  }
+}
