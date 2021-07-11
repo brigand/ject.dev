@@ -5,6 +5,8 @@ import Editor from './Editor';
 import QuadSplit from './QuadSplit';
 import PageFrame from './PageFrame';
 import RadialMenu from './RadialMenu';
+import ResultsTabs from './ResultsTabs';
+import Console from './Console';
 import { EventType } from '../EventType';
 import { useAsync } from 'react-use';
 import * as api from '../api';
@@ -58,7 +60,9 @@ const MenuItem = styled.div`
   font-size: 1.3em;
 `;
 
-const initialSaveId = new URL(window.location).searchParams.get('saved') || null;
+const initialSearchParams = new URL(window.location).searchParams;
+const initialSaveId = initialSearchParams.get('saved') || null;
+const initialResultsTab = initialSearchParams.get('rtab') || null;
 
 function MainPage() {
   const [events] = React.useState(() => ({
@@ -67,6 +71,9 @@ function MainPage() {
     run: new EventType(),
   }));
   const session = React.useRef({ files: defaultFiles() });
+  const [rtab, setRtab] = React.useState(
+    initialResultsTab === 'console' ? 'console' : 'frame',
+  );
   const [submitCount, setSubmitCount] = React.useState(1);
 
   const loadSave = useAsync(async () => {
@@ -205,12 +212,24 @@ function MainPage() {
         ) : createSession.error ? (
           'Failed to create session'
         ) : createSession.value ? (
-          <PageFrame
-            host={INJECT_DOMAIN_FRAME}
-            sessionId={createSession.value}
-            resize={events.resize}
-            key={submitCount}
-          />
+          <ResultsTabs
+            value={rtab}
+            firstChild="frame"
+            onChange={(value) => {
+              const url = new URL(window.location);
+              url.searchParams.set('rtab', value);
+              window.history.replaceState(null, '', url);
+              setRtab(value);
+            }}
+          >
+            <PageFrame
+              host={INJECT_DOMAIN_FRAME}
+              sessionId={createSession.value}
+              resize={events.resize}
+              key={submitCount}
+            />
+            <Console />
+          </ResultsTabs>
         ) : (
           'Unexpected state. Report a bug.'
         )}
