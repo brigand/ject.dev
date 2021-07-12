@@ -1,17 +1,15 @@
-use std::borrow::Cow;
-use std::sync::Arc;
-
 use crate::cdn::cdnjs_script;
 use crate::db::{self, DbResult, IjDb, Key};
 use crate::http_error::{ErrorMime, HttpError};
 use crate::js::compile;
 use crate::parser::{parse_html, HtmlPart};
-use crate::state::{File, FileKind, Session, SessionMeta, State};
+use crate::state::{File, FileKind, Session, SessionMeta};
 use crate::{ids, DbData};
 use actix_web::{get, post, put, web, HttpResponse, Responder, Scope};
 use db::DbError;
 use serde::Deserialize;
 use serde_json::json;
+use std::borrow::Cow;
 
 #[cfg(debug_assert)]
 const SESSION_LIMIT: u32 = 512;

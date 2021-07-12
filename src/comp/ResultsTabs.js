@@ -3,6 +3,10 @@ import pt from 'prop-types';
 import styled from '@emotion/styled';
 import { Col, Row } from './Flex';
 
+const Container = styled(Col)`
+  height: 100%;
+`;
+
 const Tabs = styled(Row)``;
 
 const Tab = styled.button`
@@ -24,9 +28,6 @@ const Content = styled(Col)`
   }
 `;
 
-/**
- * This component
- */
 function ResultsTabs(props) {
   const makeTab = (id, text) => (
     <Tab
@@ -50,12 +51,12 @@ function ResultsTabs(props) {
   }
 
   return (
-    <Col style={{ height: '100%' }}>
+    <Container>
       <Tabs>{tabs}</Tabs>
       <Content active={tabs.findIndex((tab) => tab.props.active)}>
         {props.children}
       </Content>
-    </Col>
+    </Container>
   );
 }
 
