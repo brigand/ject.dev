@@ -175,15 +175,6 @@ function Editor(props) {
   React.useEffect(() => {
     if (monaco) {
       init();
-    } else {
-      if (!promise) {
-        // promise = import('monaco-editor/esm/vs/editor/editor.main.js').then((mod) => {
-        // promise = import('monaco-editor/dev/vs/editor/editor.main.js').then((mod) => {
-        // monaco = { ...mod };
-        // });
-      }
-
-      promise.then(init);
     }
   }, []);
 
