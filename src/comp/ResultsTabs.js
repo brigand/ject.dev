@@ -19,7 +19,8 @@ const Tab = styled.button`
 `;
 
 const Content = styled(Col)`
-  flex: 1 1 auto;
+  flex: 0 1 auto;
+  height: calc(100% - 2.3em);
 
   & > * {
     height: 100%;

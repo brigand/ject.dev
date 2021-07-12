@@ -55,7 +55,7 @@ function Group(props) {
   const ref = React.useRef();
   React.useEffect(() => {
     if (ref.current) {
-      const scrollParent = ref.current.parentElement.parentElement.parentElement;
+      const scrollParent = ref.current.parentElement;
       scrollParent.scrollTo(0, scrollParent.scrollHeight - scrollParent.offsetHeight);
     }
   }, [items.length]);
@@ -98,7 +98,7 @@ function Console(props) {
   });
 
   return (
-    <div>
+    <div style={{ overflow: 'auto' }}>
       {range(0, groups).map((i) => (
         <GroupMemo key={i} index={i} queue={queue} pull={pull} />
       ))}
