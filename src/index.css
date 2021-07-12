@@ -5,6 +5,7 @@
   --ij-bg-alt-2: #2c3244;
   --ij-fg: #d5ced9;
   --ij-middle-gray: hsl(278, 13%, 64%);
+  --font-mono: 'JetBrains Mono', 'Inconsolata', monospace;
 
   --purple: #c74ded;
   --pink: #ff00aa;
@@ -34,4 +35,8 @@ body {
   color: var(--ij-fg);
 
   overflow: hidden;
+}
+
+code {
+  font-family: var(--font-mono);
 }

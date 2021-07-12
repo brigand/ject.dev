@@ -32,6 +32,7 @@ function defaultFiles() {
     <meta charset="utf-8" />
     <link rel="stylesheet" href="inject!(urls.css)" />
 
+    inject!(console)
     <!-- inject!(deps.react) -->
     <!-- inject!(deps.jquery) -->
   </head>
@@ -69,6 +70,7 @@ function MainPage() {
     resize: new EventType(),
     save: new EventType(),
     run: new EventType(),
+    consoleMessage: new EventType(),
   }));
   const session = React.useRef({ files: defaultFiles() });
   const [rtab, setRtab] = React.useState(
@@ -226,9 +228,10 @@ function MainPage() {
               host={INJECT_DOMAIN_FRAME}
               sessionId={createSession.value}
               resize={events.resize}
+              consoleMessage={events.consoleMessage}
               key={submitCount}
             />
-            <Console />
+            <Console consoleMessage={events.consoleMessage} />
           </ResultsTabs>
         ) : (
           'Unexpected state. Report a bug.'

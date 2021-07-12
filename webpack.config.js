@@ -7,6 +7,7 @@ module.exports = defineConfig((env, argv) => ({
   mode: argv.mode || 'development',
   entry: {
     app: './src/index.js',
+    console: './src/console.js',
     'editor.worker': 'monaco-editor/esm/vs/editor/editor.worker.js',
     'json.worker': 'monaco-editor/esm/vs/language/json/json.worker',
     'css.worker': 'monaco-editor/esm/vs/language/css/css.worker',
@@ -21,7 +22,7 @@ module.exports = defineConfig((env, argv) => ({
   devServer: {
     // contentBase: './dist',
     compress: true,
-    allowedHosts: ['localhost', 'enject.org.local'],
+    allowedHosts: ['localhost', 'enject.org.local', 'ject.link.local'],
   },
   plugins: [
     new HtmlWebpackPlugin({

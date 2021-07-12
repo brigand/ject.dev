@@ -5,6 +5,8 @@ import { Col, Row } from './Flex';
 
 const Container = styled(Col)`
   height: 100%;
+  max-height: 100%;
+  overflow: auto;
 `;
 
 const Tabs = styled(Row)``;
@@ -63,8 +65,8 @@ function ResultsTabs(props) {
 ResultsTabs.propTypes = {
   value: pt.oneOf(['frame', 'console']).isRequired,
   firstValue: pt.oneOf(['frame', 'console']).isRequired,
-  onChange: pt.func.isRequire,
-  children: pt.node.isRequire,
+  onChange: pt.func.isRequired,
+  children: pt.node.isRequired,
 };
 
 export default ResultsTabs;

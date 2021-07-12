@@ -239,6 +239,8 @@ async fn r_get_session_page_html(
     };
 
     let page_url = |suffix: &str| format!("/api/session/{}/page{}", session_id, suffix);
+    let public_path = |path: &str| format!("/dist/{}", path);
+    let public_script = |path: &str| format!("<script src=\"{}\"></script>", public_path(path));
 
     // TODO: perform searches like https://api.cdnjs.com/libraries?search=jquery&limit=1 to allow arbitrary cdnjs deps
     let html = parts
@@ -247,6 +249,7 @@ async fn r_get_session_page_html(
             match part {
                 HtmlPart::Literal(literal) => out.push_str(literal),
                 HtmlPart::IncludePath(path) => match &path[..] {
+                    &["console"] => out.push_str(&public_script("console.bundle.js")),
                     &["urls", "js"] => out.push_str(&page_url(".js")),
                     &["urls", "js", "raw"] => out.push_str(&page_url(".js.raw")),
                     &["urls", "css"] => out.push_str(&page_url(".css")),
