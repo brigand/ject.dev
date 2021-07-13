@@ -25,7 +25,12 @@ normalMethods.forEach((method) => {
         type: 'console',
         method,
         args: args.map((arg) =>
-          objectInspect(arg, { customInspect: false, maxStringLength: 1024 * 32 }),
+          typeof arg === 'string'
+            ? arg.slice(0, 1024 * 16)
+            : objectInspect(arg, {
+                customInspect: false,
+                maxStringLength: 1024 * 32,
+              }),
         ),
       },
       targetOrigin,
