@@ -4,6 +4,8 @@ import styled from '@emotion/styled';
 import { EventType } from '../EventType';
 import { range } from '../utils/array';
 
+const PER_GROUP = 10;
+
 const LogLine = styled.pre`
   color: ${(props) =>
     props.method === 'error'
@@ -77,7 +79,6 @@ Group.propTypes = {
 
 const GroupMemo = React.memo(Group);
 
-const PER_GROUP = 10;
 function Console(props) {
   const [pull] = React.useState(() => new EventType());
   const [queue] = React.useState(() => []);
