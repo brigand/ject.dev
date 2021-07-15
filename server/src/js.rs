@@ -16,8 +16,10 @@ use swc_common::FileName;
 use swc_common::SourceMap;
 use swc_common::Span;
 use swc_common::Spanned;
+use swc_ecma_ast::JSXAttrValue;
 use swc_ecma_ast::JSXElement;
 use swc_ecma_ast::JSXElementName;
+use swc_ecma_ast::Lit;
 use swc_ecma_parser::error::Error as EcmaParserError;
 use swc_ecma_parser::lexer::Lexer;
 use swc_ecma_parser::EsConfig;
@@ -26,13 +28,13 @@ use swc_ecma_parser::StringInput;
 use swc_ecma_parser::Syntax;
 use swc_ecma_parser::TsConfig;
 use swc_ecma_visit::VisitAll;
+use swc_ecma_visit::VisitAllWith;
 
+// Ref: https://sourcemaps.info/spec.html
 struct Vql(i32);
 
 impl Display for Vql {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use std::fmt::Write;
-
         static ALPHA: [char; 64] = [
             'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'O', 'N', 'P', 'Q',
             'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h',
@@ -105,26 +107,105 @@ fn make_handler(write: MemWrite) -> Handler {
 #[derive(Debug, Clone)]
 enum Action {
     Replace(String),
+    Wrap(String),
     Remove,
 }
 
 #[derive(Debug, Default)]
-struct VisitJsx {
+struct VisitJsx<'a> {
+    code: &'a str,
     ops: Vec<(Action, Span)>,
 }
 
-// Ref: https://sourcemaps.info/spec.html
+impl<'a> VisitJsx<'a> {
+    fn slice(&self, span: Span) -> &str {
+        &self.code[span.lo().0 as usize..span.hi().0 as usize]
+    }
+}
 
-impl VisitAll for VisitJsx {
+impl VisitAll for VisitJsx<'_> {
     fn visit_jsx_element(&mut self, node: &JSXElement, parent: &dyn swc_ecma_visit::Node) {
-        match node.opening.name {
-            JSXElementName::Ident(ident) => {}
-            JSXElementName::JSXMemberExpr(member) => {}
-            JSXElementName::JSXNamespacedName(namespaced) => {}
+        let (name_span, is_html) = match &node.opening.name {
+            JSXElementName::Ident(ident) => {
+                let first_char = std::str::from_utf8(ident.sym.as_bytes())
+                    .ok()
+                    .and_then(|s| s.chars().next());
+
+                let is_html = match first_char {
+                    Some(ch) => ch.is_lowercase(),
+                    None => true,
+                };
+                (ident.span(), is_html)
+            }
+            JSXElementName::JSXMemberExpr(mem) => (mem.span(), false),
+            JSXElementName::JSXNamespacedName(ns) => (ns.span(), false),
+        };
+
+        use std::fmt::Write;
+        let mut props = String::new();
+        for attr in &node.opening.attrs {
+            use swc_ecma_ast::JSXAttrOrSpread;
+            match attr {
+                JSXAttrOrSpread::JSXAttr(attr) => {
+                    let span = match &attr.name {
+                        swc_ecma_ast::JSXAttrName::Ident(ident) => ident.span(),
+                        swc_ecma_ast::JSXAttrName::JSXNamespacedName(ns) => ns.span(),
+                    };
+                    write!(&mut props, "\"{}\": ", self.slice(span)).unwrap();
+                    let value = match &attr.value {
+                        Some(JSXAttrValue::Lit(lit)) => self.slice(lit.span()),
+                        Some(JSXAttrValue::JSXExprContainer(expr)) => self.slice(expr.span()),
+                        Some(JSXAttrValue::JSXElement(el)) => self.slice(el.span()),
+                        Some(JSXAttrValue::JSXFragment(frag)) => self.slice(frag.span()),
+                        None => "true",
+                    };
+                    write!(&mut props, "{},", value).unwrap();
+                }
+                JSXAttrOrSpread::SpreadElement(spread) => {
+                    let expr = self.slice(spread.expr.span());
+                    write!(&mut props, "...({}),", expr).unwrap();
+                }
+            }
         }
+
+        let replace_open = format!(
+            "React.createElement({q}{name}{q}, {{{props}}}{end}",
+            q = if is_html { "\"" } else { "" },
+            name = self.slice(name_span),
+            props = props,
+            end = if node.closing.is_some() { "," } else { ")" }
+        );
+        self.ops
+            .push((Action::Replace(replace_open), node.opening.span()));
+
+        // TODO: handle children
+
         if let Some(closing) = &node.closing {
-            self.ops.push((Action::Remove, closing.span));
+            self.ops
+                .push((Action::Replace(")".to_owned()), closing.span));
         }
+    }
+}
+
+#[cfg(test)]
+mod visit_test {
+    use super::compile_minimal;
+
+    #[test]
+    fn first() {
+        let code = r#"
+console.log('Hello, world!')
+function App() {
+    const [count, setCount] = React.useState(0)
+    console.log({ count })
+    return <button type="button" onClick={() => setCount(c => c + 1)}>Count: {count}</button>;
+}
+
+ReactDOM.render(<App />, root)
+"#;
+
+        let out = compile_minimal(code.to_owned()).unwrap();
+        panic!("intentional failure");
     }
 }
 
@@ -188,7 +269,7 @@ pub fn compile_minimal(js: String) -> Result<String, JsError> {
     let write = MemWrite::default();
     let handler = make_handler(write.clone());
 
-    let fm = cm.new_source_file(FileName::Custom("your-code.mjs".to_owned()), js);
+    let fm = cm.new_source_file(FileName::Custom("your-code.mjs".to_owned()), js.clone());
 
     let lexer = Lexer::new(
         Syntax::Es(EsConfig {
@@ -219,7 +300,15 @@ pub fn compile_minimal(js: String) -> Result<String, JsError> {
             e.into_diagnostic(&handler).emit()
         })
         .expect("failed to parser module");
-    module.body
+
+    let mut visitor = VisitJsx::default();
+    for item in &module.body {
+        item.visit_all_with(&module, &mut visitor);
+    }
+
+    println!("Visitor: {:?}", visitor);
+
+    Ok(js)
 }
 
 pub fn compile(js: String) -> anyhow::Result<String> {
