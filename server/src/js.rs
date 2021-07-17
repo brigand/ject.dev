@@ -1,4 +1,5 @@
 use anyhow::bail;
+use std::cmp::Ordering;
 use std::fmt;
 use std::fmt::Display;
 use std::io::Write;
@@ -16,6 +17,7 @@ use swc_common::FileName;
 use swc_common::SourceMap;
 use swc_common::Span;
 use swc_common::Spanned;
+use swc_common::SyntaxContext;
 use swc_ecma_ast::JSXAttrValue;
 use swc_ecma_ast::JSXElement;
 use swc_ecma_ast::JSXElementName;
@@ -107,19 +109,52 @@ fn make_handler(write: MemWrite) -> Handler {
 #[derive(Debug, Clone)]
 enum Action {
     Replace(String),
-    Wrap(String),
+    ReplaceSpan(Span),
+    Wrap { pre: String, post: String },
     Remove,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct VisitJsx<'a> {
     code: &'a str,
     ops: Vec<(Action, Span)>,
 }
 
+fn span_len(span: Span) -> usize {
+    (span.hi().0 as usize) - (span.lo().0 as usize)
+}
+
 impl<'a> VisitJsx<'a> {
     fn slice(&self, span: Span) -> &str {
         &self.code[span.lo().0 as usize..span.hi().0 as usize]
+    }
+
+    fn sort_by_end(&mut self) {
+        self.ops.sort_by(|a, b| {
+            let end = |x: &(Action, Span)| x.1.hi.0;
+            end(b).cmp(&end(a))
+        });
+    }
+
+    fn apply(&mut self) -> String {
+        self.sort_by_end();
+        let mut out = String::new();
+
+        for (action, span) in &self.ops {
+            match action {
+                Action::Replace(_) => todo!(),
+                Action::ReplaceSpan(src_span) => {
+                    // Replace `span` with `src_span` after evaluating all other ops inside `span`
+                    // This needs to recurse to potentially any depth
+                    // Maybe we make another VisitJsx with the `span` subset of `self.code`
+                    // and the ops inside `span`, with an extra span offset field for `span.0.lo()`
+                }
+                Action::Wrap { pre, post } => todo!(),
+                Action::Remove => todo!(),
+            }
+        }
+
+        out
     }
 }
 
@@ -141,8 +176,17 @@ impl VisitAll for VisitJsx<'_> {
             JSXElementName::JSXNamespacedName(ns) => (ns.span(), false),
         };
 
+        let prefix_span = Span::new(node.opening.span().lo, name_span.hi, SyntaxContext::empty());
+
+        let name_replace = format!(
+            "React.createElement({q}{name}{q}, {{",
+            q = if is_html { "\"" } else { "" },
+            name = self.slice(name_span)
+        );
+        self.ops.push((Action::Replace(name_replace), prefix_span));
+
         use std::fmt::Write;
-        let mut props = String::new();
+
         for attr in &node.opening.attrs {
             use swc_ecma_ast::JSXAttrOrSpread;
             match attr {
@@ -151,38 +195,53 @@ impl VisitAll for VisitJsx<'_> {
                         swc_ecma_ast::JSXAttrName::Ident(ident) => ident.span(),
                         swc_ecma_ast::JSXAttrName::JSXNamespacedName(ns) => ns.span(),
                     };
-                    write!(&mut props, "\"{}\": ", self.slice(span)).unwrap();
-                    let value = match &attr.value {
-                        Some(JSXAttrValue::Lit(lit)) => self.slice(lit.span()),
-                        Some(JSXAttrValue::JSXExprContainer(expr)) => self.slice(expr.span()),
-                        Some(JSXAttrValue::JSXElement(el)) => self.slice(el.span()),
-                        Some(JSXAttrValue::JSXFragment(frag)) => self.slice(frag.span()),
-                        None => "true",
-                    };
-                    write!(&mut props, "{},", value).unwrap();
+                    let mut name_and_punct_span = attr.name.span();
+                    name_and_punct_span.hi = attr.value.span().lo;
+                    self.ops.push((
+                        Action::Replace(format!("\"{}\": ", self.slice(span))),
+                        name_and_punct_span,
+                    ));
+
+                    match &attr.value {
+                        Some(JSXAttrValue::Lit(lit)) => {
+                            self.ops
+                                .push((Action::ReplaceSpan(lit.span()), attr.value.span()));
+                        }
+                        Some(JSXAttrValue::JSXExprContainer(jsx_expr)) => {
+                            let span = jsx_expr.expr.span();
+                            self.ops
+                                .push((Action::ReplaceSpan(span), attr.value.span()));
+                        }
+                        Some(JSXAttrValue::JSXElement(el)) => {
+                            let span = el.span();
+                            self.ops
+                                .push((Action::ReplaceSpan(span), attr.value.span()));
+                        }
+                        Some(JSXAttrValue::JSXFragment(frag)) => {
+                            let span = frag.span();
+                            self.ops
+                                .push((Action::ReplaceSpan(span), attr.value.span()));
+                        }
+                        None => {
+                            self.ops
+                                .push((Action::Replace("true".to_owned()), attr.value.span()));
+                        }
+                    }
                 }
                 JSXAttrOrSpread::SpreadElement(spread) => {
-                    let expr = self.slice(spread.expr.span());
-                    write!(&mut props, "...({}),", expr).unwrap();
+                    let mut start = spread.span();
+                    start.hi = start.lo;
+                    self.ops.push((Action::Replace("...".to_owned()), start));
+                    self.ops
+                        .push((Action::ReplaceSpan(spread.expr.span()), spread.span()));
                 }
             }
         }
 
-        let replace_open = format!(
-            "React.createElement({q}{name}{q}, {{{props}}}{end}",
-            q = if is_html { "\"" } else { "" },
-            name = self.slice(name_span),
-            props = props,
-            end = if node.closing.is_some() { "," } else { ")" }
-        );
-        self.ops
-            .push((Action::Replace(replace_open), node.opening.span()));
-
-        // TODO: handle children
-
         if let Some(closing) = &node.closing {
             self.ops
                 .push((Action::Replace(")".to_owned()), closing.span));
+        } else {
         }
     }
 }
@@ -301,7 +360,10 @@ pub fn compile_minimal(js: String) -> Result<String, JsError> {
         })
         .expect("failed to parser module");
 
-    let mut visitor = VisitJsx::default();
+    let mut visitor = VisitJsx {
+        code: &js,
+        ops: vec![],
+    };
     for item in &module.body {
         item.visit_all_with(&module, &mut visitor);
     }
