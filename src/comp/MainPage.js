@@ -30,7 +30,7 @@ function defaultFiles() {
 <html>
   <head>
     <meta charset="utf-8" />
-    <link rel="stylesheet" href="inject!(urls.css)" />
+    <link rel="stylesheet" href="inject!(editors.css.raw)" />
 
     inject!(console)
     <!-- inject!(deps.react) -->
@@ -39,9 +39,9 @@ function defaultFiles() {
 
   <body>
     <div id="root"></div>
-    <script src="inject!(urls.js)"></script>
-    <!-- <script type="module" src="inject!(urls.js.raw)"></script> -->
-  </body>
+    <script src="inject!(editors.js.raw)"></script>
+    <!-- <script type="module" src="inject!(editors.js.raw)"></script> -->
+    </body>
 </html>
 `,
     },

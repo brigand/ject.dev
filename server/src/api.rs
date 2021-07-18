@@ -250,9 +250,16 @@ async fn r_get_session_page_html(
                 HtmlPart::Literal(literal) => out.push_str(literal),
                 HtmlPart::IncludePath(path) => match &path[..] {
                     &["console"] => out.push_str(&public_script("console.bundle.js")),
-                    &["urls", "js"] => out.push_str(&page_url(".js")),
-                    &["urls", "js", "raw"] => out.push_str(&page_url(".js.raw")),
-                    &["urls", "css"] => out.push_str(&page_url(".css")),
+                    &["editors", "js"] | &["editors", "js", "url"] => {
+                        out.push_str(&page_url(".js"))
+                    }
+                    &["editors", "js", "raw"] | &["editors", "js", "raw", "url"] => {
+                        out.push_str(&page_url(".js.raw"))
+                    }
+                    &["editors", "css"]
+                    | &["editors", "css", "url"]
+                    | &["editors", "css", "raw"]
+                    | &["editors", "css", "url", "raw"] => out.push_str(&page_url(".css")),
                     &["deps", "react"] => {
                         out.push_str(&cdnjs_script("react/17.0.2/umd/react.development.min.js"));
                         out.push_str(&cdnjs_script(
@@ -262,7 +269,7 @@ async fn r_get_session_page_html(
                     &["deps", "jquery"] => {
                         out.push_str(&cdnjs_script("jquery/3.6.0/jquery.min.js"));
                     }
-                    &["urls", other] => {
+                    &["editors", other, ..] => {
                         anyhow::bail!("Unexpected second segment in inject(urls.{})", other)
                     }
                     &[other, ..] => anyhow::bail!("Unexpected command: inject!({}, …)", other),
