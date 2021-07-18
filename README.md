@@ -22,6 +22,7 @@ In another terminal session start the API server (will take a bit for the first
 compile):
 
 ```sh
+$ export RUST_BACKTRACE=1
 $ cargo run
 
 # Wait for this line:
@@ -29,7 +30,10 @@ Starting server on 0.0.0.0:1950
 
 # Alternative (auto-restart)
 $ cargo install cargo-watch
-$ cargo watch -c -x run -w server/
+$ cargo watch -c -w server/ -x run
+
+# Watch and run tests
+$ RUST_BACKTRACE=1 cargo watch -c -w server/ -x test
 ```
 
 Then open your browser to http://enject.org.local:1950/
