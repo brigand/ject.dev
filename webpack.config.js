@@ -22,7 +22,7 @@ module.exports = defineConfig((env, argv) => ({
   devServer: {
     // contentBase: './dist',
     compress: true,
-    allowedHosts: ['localhost', 'enject.org.local', 'ject.link.local'],
+    allowedHosts: ['localhost', 'ject.link.local', 'enject.org.local'],
   },
   plugins: [
     new HtmlWebpackPlugin({
@@ -31,8 +31,8 @@ module.exports = defineConfig((env, argv) => ({
     new DefinePlugin({
       'process.env': {
         NODE_ENV: JSON.stringify(argv.mode || 'development'),
-        INJECT_DOMAIN_MAIN: JSON.stringify('enject.org'),
-        INJECT_DOMAIN_FRAME: JSON.stringify('ject.link'),
+        INJECT_DOMAIN_MAIN: JSON.stringify('ject.link'),
+        INJECT_DOMAIN_FRAME: JSON.stringify('enject.org'),
       },
     }),
   ],

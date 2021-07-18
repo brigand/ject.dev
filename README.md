@@ -36,6 +36,6 @@ $ cargo watch -c -w server/ -x run
 $ RUST_BACKTRACE=1 cargo watch -c -w server/ -x test
 ```
 
-Then open your browser to http://enject.org.local:1950/
+Then open your browser to http://ject.link.local:1950/
 
 <kbd>ctrl-c</kbd> and `cargo run` after updating a `.rs` file
