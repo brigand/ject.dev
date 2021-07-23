@@ -8,7 +8,7 @@ Prerequisites:
 Add the following two entries to /etc/hosts:
 
 ```
-127.0.0.1 enject.org.local ject.link.local
+127.0.0.1 ject.dev.local ject.link.local
 ```
 
 Start webpack's server in one terminal tab/pane:
@@ -36,6 +36,6 @@ $ cargo watch -c -w server/ -x run
 $ RUST_BACKTRACE=1 cargo watch -c -w server/ -x test
 ```
 
-Then open your browser to http://ject.link.local:1950/
+Then open your browser to http://ject.dev.local:1950/
 
 <kbd>ctrl-c</kbd> and `cargo run` after updating a `.rs` file
