@@ -1,7 +1,8 @@
-use crate::env::open_rocksdb_env;
-use actix_web::{http::StatusCode, HttpResponse, ResponseError};
+use crate::{env::open_sqlite_env, state::SessionMeta};
+use actix_rt::blocking::BlockingError;
+use actix_web::{guard::Connect, http::StatusCode, web::block, HttpResponse, ResponseError};
 use owning_ref::OwningRef;
-use rocksdb::DB;
+use rusqlite::{params, Connection, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::{borrow::Cow, fmt::Debug, sync::Mutex};
@@ -19,8 +20,14 @@ pub enum DbError {
         key_debug
     )]
     GetKey {
-        source: rocksdb::Error,
+        source: rusqlite::Error,
         key_debug: String,
+    },
+
+    #[error("Failed to create table. SQL: {}", sql)]
+    CreateTable {
+        source: rusqlite::Error,
+        sql: String,
     },
 
     #[error("The key {} does not exist", key_debug)]
@@ -41,17 +48,46 @@ pub enum DbError {
         key_debug: String,
     },
 
-    #[error("Failed to put value of key {} into the database", key_debug)]
-    Put {
-        source: rocksdb::Error,
-        key_debug: String,
+    #[error(
+        "Failed insert a file {} into the database for session/saved {}",
+        file_name,
+        session_or_saved_id
+    )]
+    PutFile {
+        source: rusqlite::Error,
+        file_name: String,
+        session_or_saved_id: String,
+    },
+
+    #[error("Failed insert a Saved with id {}", saved_id)]
+    PutSaved {
+        source: rusqlite::Error,
+        saved_id: String,
+        meta: String,
+    },
+    #[error("Failed insert a Session Index for session {}", session_id)]
+    PutSessionIndex {
+        source: rusqlite::Error,
+        session_id: String,
     },
 
     #[error("Unable to remove the key {}", key_debug)]
     UnableToRemoveKey {
-        source: rocksdb::Error,
+        source: rusqlite::Error,
         key_debug: String,
     },
+
+    #[error("The blocking operation was canceled")]
+    BlockCanceled {},
+}
+
+impl From<BlockingError<DbError>> for DbError {
+    fn from(error: BlockingError<DbError>) -> Self {
+        match error {
+            BlockingError::Error(inner) => inner,
+            BlockingError::Canceled => DbError::BlockCanceled {},
+        }
+    }
 }
 
 impl ResponseError for DbError {
@@ -84,12 +120,54 @@ impl DbError {
             DbError::SerializeValue { .. } => "db_ser_value",
             DbError::Put { .. } => "db_put_value",
             DbError::UnableToRemoveKey { .. } => "db_remove_key",
+            DbError::CreateTable { source, sql } => "db_create_table",
+            DbError::BlockCanceled {} => "db_block_canceled",
         }
     }
     pub fn to_response(&self) -> HttpResponse {
         self.error_response()
     }
 }
+
+static TABLES: &[&str] = &[
+    r#"
+CREATE TABLE IF NOT EXISTS kv (
+    key BLOB PRIMARY KEY,
+    value BLOB
+)
+"#,
+    r#"
+CREATE TABLE IF NOT EXISTS file (
+    file_id INTEGER PRIMARY KEY,
+    session_or_saved_id BLOB,
+    name TEXT NOT NULL,
+    contents BLOB
+)
+"#,
+    r#"
+CREATE TABLE IF NOT EXISTS saved (
+    saved_id BLOB PRIMARY KEY,
+    file_types BLOB
+)
+"#,
+    r#"
+CREATE TABLE IF NOT EXISTS session (
+    session_id BLOB PRIMARY KEY,
+    file_types BLOB
+)
+"#,
+    r#"
+CREATE TABLE IF NOT EXISTS session_index (
+    index INTEGER NON NULL,
+    session_id BLOB,
+)
+"#,
+    r#"
+CREATE TABLE IF NOT EXISTS session_counter (
+    count INTEGER NON NULL,
+)
+"#,
+];
 
 /// Represents a key in the rocksdb database. Each is serialized to JSON using serde_json.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -190,136 +268,139 @@ impl KeyLike for KeyRendered<'_> {
 
 /// An open rocksdb database.
 #[derive(Debug)]
-pub struct IjDb {
-    db: DB,
+pub struct Db {
+    db: Connection,
     session_counter_lock: Mutex<()>,
 }
 
-impl IjDb {
-    /// Create/open database in $IJ_DATA_DIR, with a fallback
-    // of "$(pwd)/ij_data_dir" (see [crate::env])
-    pub fn open_env() -> DbResult<Self> {
-        open_rocksdb_env()
-            .map(|db| Self {
-                db,
-                session_counter_lock: Default::default(),
-            })
-            .map_err(|source| DbError::Open { source })
-    }
-
-    pub fn get_bytes(&self, key: &dyn KeyLike) -> DbResult<Option<Vec<u8>>> {
-        self.db
-            .get(key.render_key())
-            .map_err(|source| DbError::GetKey {
-                source,
-                key_debug: format!("{:?}", key),
-            })
-    }
-
-    pub fn get_bytes_pinned(
-        &self,
-        key: &dyn KeyLike,
-    ) -> DbResult<Option<rocksdb::DBPinnableSlice<'_>>> {
-        self.db
-            .get_pinned(key.render_key())
-            .map_err(|source| DbError::GetKey {
-                source,
-                key_debug: key.dbg(),
-            })
-    }
-
-    /// Read the bytes for the specified key and parse it as UTF8. Pairs with [`Self::put_text`].
-    pub fn get_text(&self, key: &dyn KeyLike) -> DbResult<String> {
-        let bytes = self.get_bytes(key)?.ok_or_else(|| DbError::KeyNotFound {
-            key_debug: key.dbg(),
-        })?;
-        String::from_utf8(bytes).map_err(|_source| DbError::Utf8 {
-            key_debug: key.dbg(),
+impl Db {
+    /// Create/open database at $JECT_DB, with a fallback
+    // of "$(pwd)/ject.db3" (see [crate::env])
+    pub async fn open_env() -> DbResult<Self> {
+        let db = actix_web::web::block(|| {
+            open_sqlite_env()
+                .map(|db| Self {
+                    db,
+                    session_counter_lock: Default::default(),
+                })
+                .map_err(|source| DbError::Open {
+                    source: source.into(),
+                })
         })
+        .await?;
+
+        Ok(db)
     }
 
-    /// Store the value in the specified key as UTF8. Pairs with [`Self::get_text`].
-    pub fn put_text(&self, key: &dyn KeyLike, value: &str) -> DbResult<()> {
-        self.db
-            .put(key.render_key(), value)
-            .map_err(|source| DbError::Put {
-                key_debug: key.dbg(),
-                source,
-            })?;
-
-        Ok(())
-    }
-
-    /// Zero-copy version of [`Self::get_text`]. Unclear if this is actually more efficient.
-    /// You can deref or AsRef to get `&str`, e.g.
-    ///
-    /// ```norun
-    /// if let Some(text) = db.get_text_pinned()? {
-    ///   let s: &str = x.as_ref();
-    /// }
-    /// ```
-    pub fn get_text_pinned(
-        &self,
-        key: &dyn KeyLike,
-    ) -> DbResult<Option<OwningRef<Box<rocksdb::DBPinnableSlice<'_>>, str>>> {
-        let res = self.get_bytes_pinned(key);
-        match res {
-            Ok(Some(slice)) => {
-                if std::str::from_utf8(&*slice).is_ok() {
-                    let owning = OwningRef::new(Box::new(slice))
-                        .map(|slice| std::str::from_utf8(slice).unwrap());
-                    Ok(Some(owning))
-                } else {
-                    Err(DbError::Utf8 {
-                        key_debug: key.dbg(),
-                    })
-                }
-            }
-            Ok(None) => Ok(None),
-            Err(err) => Err(err),
+    /// Creates all tables if they don't already exist
+    pub fn create_tables(&self) -> DbResult<()> {
+        for create_table in TABLES.into_iter().copied() {
+            self.db
+                .execute(create_table, [])
+                .map_err(|source| DbError::CreateTable {
+                    sql: create_table.to_owned(),
+                    source,
+                })?;
         }
-    }
-
-    pub fn get_json<T>(&self, key: &dyn KeyLike) -> DbResult<T>
-    where
-        T: serde::de::DeserializeOwned,
-    {
-        let bytes = self
-            .get_bytes_pinned(key)?
-            .ok_or_else(|| DbError::KeyNotFound {
-                key_debug: key.dbg(),
-            })?;
-        serde_json::from_slice(&bytes[..]).map_err(|source| DbError::DeserializeJson {
-            key_debug: key.dbg(),
-            source,
-        })
-    }
-    pub fn put_json<T>(&self, key: &dyn KeyLike, value: T) -> DbResult<()>
-    where
-        T: serde::Serialize,
-    {
-        let bytes = serde_json::to_vec(&value).map_err(|source| DbError::SerializeValue {
-            key_debug: key.dbg(),
-            source,
-        })?;
-        self.db
-            .put(key.render_key(), bytes)
-            .map_err(|source| DbError::Put {
-                key_debug: key.dbg(),
-                source,
-            })?;
 
         Ok(())
     }
 
-    pub fn remove_key(&self, key: &dyn KeyLike) -> DbResult<()> {
-        self.db
-            .delete(key.render_key())
-            .map_err(|source| DbError::UnableToRemoveKey {
-                key_debug: key.dbg(),
-                source,
-            })
+    /// Store an entry in the 'file' table, associated with a 'saved' or 'session'.
+    pub async fn put_file(
+        self,
+        session_or_saved_id: &str,
+        file_name: &str,
+        contents: &str,
+    ) -> DbResult<Self> {
+        let session_or_saved_id = session_or_saved_id.to_owned();
+        let file_name = file_name.to_owned();
+        let contents = contents.to_owned();
+        let self2 = block(move || {
+            self.db
+                .execute(
+                    r#"UPSERT INTO file (session_or_saved_id, name, contents) VALUES (?, ?, ?)"#,
+                    rusqlite::params![session_or_saved_id, file_name, contents],
+                )
+                .map(|_| self)
+                .map_err(|source| DbError::PutFile {
+                    source,
+                    file_name,
+                    session_or_saved_id,
+                })
+        })
+        .await?;
+
+        Ok(self2)
     }
+
+    /// Store an entry in the 'saved' table.
+    pub async fn put_saved(self, saved_id: &str, meta: SessionMeta) -> DbResult<Self> {
+        let saved_id = saved_id.to_owned();
+        let meta = serde_json::to_string(&meta).expect("ject: SessionMeta to json");
+
+        let self2 = block(move || {
+            self.db
+                .execute(
+                    r#"UPSERT INTO saved (saved_id, meta) VALUES (?, ?)"#,
+                    rusqlite::params![saved_id, meta],
+                )
+                .map(|_| self)
+                .map_err(|source| DbError::PutSaved {
+                    source,
+                    saved_id,
+                    meta,
+                })
+        })
+        .await?;
+
+        Ok(self2)
+    }
+
+    /// Store an entry in the 'session' table.
+    pub async fn put_session(self, session_id: &str, meta: SessionMeta) -> DbResult<Self> {
+        let session_id = session_id.to_owned();
+        let meta = serde_json::to_string(&meta).expect("ject: SessionMeta to json");
+
+        let self2 = block(move || {
+            self.db
+                .execute(
+                    r#"UPSERT INTO session (session_id, meta) VALUES (?, ?)"#,
+                    rusqlite::params![session_id, meta],
+                )
+                .map(|_| self)
+                .map_err(|source| DbError::PutSaved {
+                    source,
+                    saved_id: session_id,
+                    meta,
+                })
+        })
+        .await?;
+
+        Ok(self2)
+    }
+
+    /// Store an entry in the 'session_index' table.
+    pub async fn put_session_index(self, index: usize, session_id: &str) -> DbResult<Self> {
+        let session_id = session_id.to_owned();
+
+        let self2 = block(move || {
+            self.db
+                .execute(
+                    r#"UPSERT INTO session_index (index, session_id) VALUES (?, ?)"#,
+                    rusqlite::params![index, session_id],
+                )
+                .map(|_| self)
+                .map_err(|source| DbError::PutSessionIndex {
+                    source,
+                    session_id: session_id,
+                })
+        })
+        .await?;
+
+        Ok(self2)
+    }
+
     pub fn incr_session_counter(&self, max_value: u32) -> DbResult<u32> {
         let _lock = self
             .session_counter_lock

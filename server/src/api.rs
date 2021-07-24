@@ -1,7 +1,6 @@
 use crate::cdn::cdnjs_script;
-use crate::db::{self, DbResult, IjDb, Key};
+use crate::db::{self, Db, DbResult, Key};
 use crate::http_error::{ErrorMime, HttpError};
-use crate::js::compile;
 use crate::parser::{parse_html, HtmlPart};
 use crate::state::{File, FileKind, Session, SessionMeta};
 use crate::{ids, DbData};
@@ -33,14 +32,13 @@ struct Save {
     session: Session,
 }
 
-fn put_files(db: &IjDb, session_id: &str, session: &Session) -> DbResult<()> {
+async fn put_files(mut db: Db, session_id: &str, session: &Session) -> DbResult<Db> {
     for file in &session.files {
         let file_name = file.kind.to_default_name();
-        let file_key = Key::file(session_id, file_name);
-        db.put_text(&file_key, &file.contents)?;
+        db = db.put_file(session_id, file_name, &file.contents).await?;
     }
 
-    Ok(())
+    Ok(db)
 }
 
 #[get("/saved/{save_id}")]
@@ -69,21 +67,17 @@ async fn r_get_saved(info: web::Path<String>, db: DbData) -> Result<HttpResponse
 #[post("/save")]
 async fn r_post_save(
     web::Json(Save { session }): web::Json<Save>,
-    db: DbData,
 ) -> Result<HttpResponse, DbError> {
     let save_id = ids::make_save_id();
+    let mut db = Db::open_env().await?;
 
-    put_files(&db, &save_id, &session)?;
-
-    let save_key = db::Key::Saved {
-        id: Cow::Borrowed(save_id.as_str()),
-    };
+    db = put_files(db, &save_id, &session).await?;
 
     let meta = SessionMeta {
         file_kinds: vec![FileKind::JavaScript, FileKind::Css, FileKind::Html],
     };
 
-    db.put_json(&save_key, meta)?;
+    db.put_saved(&save_id, meta).await?;
 
     Ok(HttpResponse::Ok().json(json!({ "save_id": save_id })))
 }
@@ -93,6 +87,7 @@ async fn r_post_session_new(
     web::Json(SessionNew { session }): web::Json<SessionNew>,
     db: DbData,
 ) -> Result<HttpResponse, DbError> {
+    let mut db = Db::open_env().await?;
     let session_id = ids::make_session_id();
 
     let session_index = db.incr_session_counter(SESSION_LIMIT)?;
@@ -106,12 +101,12 @@ async fn r_post_session_new(
         session_id: Cow::Borrowed(session_id.as_str()),
     };
 
-    put_files(&db, &session_id, &session)?;
+    db = put_files(db, &session_id, &session).await?;
 
     let meta = SessionMeta {
         file_kinds: vec![FileKind::JavaScript, FileKind::Css, FileKind::Html],
     };
-    db.put_json(&sess_key, meta)?;
+    db.put_saved(&session_id, meta).await?;
 
     Ok(HttpResponse::Ok().json(json!({ "session_id": session_id })))
 }

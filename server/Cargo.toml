@@ -7,14 +7,14 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-actix-web = { version = "3.3", default-features = false }
+actix-web = { version = "3.3", default-features = false, features = ["openssl"] }
+actix-rt = "1.1.1"
 anyhow = "1"
 env_logger = "0.8"
 html-escape = "0.2"
 indoc = "1"
 nanoid = "0.4"
 owning_ref = "0.4"
-rocksdb = "0.16"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # swc = "0.28.1"
@@ -23,4 +23,5 @@ swc_ecma_ast = "0.48.1"
 swc_ecma_parser = "0.62.1"
 swc_ecma_visit = "0.34.0"
 thiserror = "1"
+rusqlite = { version = "0.25.3", features = ["bundled", "backup", "chrono", "serde_json", "blob"] }
 # chrono = "0.4"
