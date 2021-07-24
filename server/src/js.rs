@@ -7,12 +7,12 @@ use std::io::Write;
 use std::iter::Peekable;
 use std::sync::Arc;
 use std::sync::Mutex;
-use swc::config::Config;
-use swc::config::JscConfig;
-use swc::config::JscTarget;
-use swc::config::Options;
-use swc::config::SourceMapsConfig;
-use swc::config::TransformConfig;
+// use swc::config::Config;
+// use swc::config::JscConfig;
+// use swc::config::JscTarget;
+// use swc::config::Options;
+// use swc::config::SourceMapsConfig;
+// use swc::config::TransformConfig;
 use swc_common::errors::emitter::EmitterWriter;
 use swc_common::errors::Handler;
 use swc_common::source_map::Pos;
@@ -533,49 +533,49 @@ pub fn compile_minimal(js: String) -> Result<String, JsError> {
     Ok(out)
 }
 
-pub fn compile(js: String) -> anyhow::Result<String> {
-    let cm = Arc::<SourceMap>::default();
-    let write = MemWrite::default();
-    let handler = make_handler(write.clone());
-    let c = swc::Compiler::new(cm.clone(), Arc::new(handler));
+// pub fn compile(js: String) -> anyhow::Result<String> {
+//     let cm = Arc::<SourceMap>::default();
+//     let write = MemWrite::default();
+//     let handler = make_handler(write.clone());
+//     let c = swc::Compiler::new(cm.clone(), Arc::new(handler));
 
-    let fm = cm.new_source_file(FileName::Custom("your-code.mjs".to_owned()), js);
+//     let fm = cm.new_source_file(FileName::Custom("your-code.mjs".to_owned()), js);
 
-    let options = Options {
-        config: Config {
-            source_maps: Some(SourceMapsConfig::Str("inline".into())),
-            // module: Some(swc::config::ModuleConfig::Es6),
-            jsc: JscConfig {
-                // syntax: Some(Syntax::Typescript(TsConfig {
-                //     tsx: true,
-                //     dynamic_import: true,
-                //     ..Default::default()
-                // })),
-                syntax: Some(Syntax::Es(EsConfig {
-                    jsx: true,
-                    // optional_chaining: true,
-                    // nullish_coalescing: true,
-                    // num_sep: true,
-                    ..Default::default()
-                })),
-                target: Some(JscTarget::Es2020),
-                transform: Some(TransformConfig {
-                    react: Default::default(),
-                    ..Default::default()
-                }),
-                ..Default::default()
-            },
-            ..Default::default()
-        },
-        ..Default::default()
-    };
+//     let options = Options {
+//         config: Config {
+//             source_maps: Some(SourceMapsConfig::Str("inline".into())),
+//             // module: Some(swc::config::ModuleConfig::Es6),
+//             jsc: JscConfig {
+//                 // syntax: Some(Syntax::Typescript(TsConfig {
+//                 //     tsx: true,
+//                 //     dynamic_import: true,
+//                 //     ..Default::default()
+//                 // })),
+//                 syntax: Some(Syntax::Es(EsConfig {
+//                     jsx: true,
+//                     // optional_chaining: true,
+//                     // nullish_coalescing: true,
+//                     // num_sep: true,
+//                     ..Default::default()
+//                 })),
+//                 target: Some(JscTarget::Es2020),
+//                 transform: Some(TransformConfig {
+//                     react: Default::default(),
+//                     ..Default::default()
+//                 }),
+//                 ..Default::default()
+//             },
+//             ..Default::default()
+//         },
+//         ..Default::default()
+//     };
 
-    match c.process_js_file(fm, &options) {
-        Ok(output) => Ok(output.code),
-        Err(err) => {
-            let buf = write.take_buf();
-            let s = String::from_utf8_lossy(&buf);
-            bail!("[compile js] {}: {}", err, s);
-        }
-    }
-}
+//     match c.process_js_file(fm, &options) {
+//         Ok(output) => Ok(output.code),
+//         Err(err) => {
+//             let buf = write.take_buf();
+//             let s = String::from_utf8_lossy(&buf);
+//             bail!("[compile js] {}: {}", err, s);
+//         }
+//     }
+// }

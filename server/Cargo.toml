@@ -17,7 +17,7 @@ owning_ref = "0.4"
 rocksdb = "0.16"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-swc = "0.28.1"
+# swc = "0.28.1"
 swc_common = "0.10.23"
 swc_ecma_ast = "0.48.1"
 swc_ecma_parser = "0.62.1"

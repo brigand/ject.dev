@@ -184,16 +184,24 @@ async fn r_get_session_page_js(
     let err_mime = ErrorMime::JavaScript;
     let code = try_get_file(&db, &session_id, err_mime, FileKind::JavaScript)?;
 
-    Ok(match compile(code) {
-        Ok(js) => HttpResponse::Ok()
-            .header("content-type", "application/javascript; charset=utf-8")
-            .body(js),
-        Err(err) => {
-            println!("compile error: {:?}", err);
-            println!("compile error root cause: {:?}", err.source());
-            HttpError::js_compile_fail(err).to_response(err_mime)
-        }
-    })
+    Ok(HttpResponse::Ok()
+        .header("content-type", "application/javascript; charset=utf-8")
+        .body(code))
+
+    // let session_id = info.0;
+    // let err_mime = ErrorMime::JavaScript;
+    // let code = try_get_file(&db, &session_id, err_mime, FileKind::JavaScript)?;
+
+    // Ok(match compile(code) {
+    //     Ok(js) => HttpResponse::Ok()
+    //         .header("content-type", "application/javascript; charset=utf-8")
+    //         .body(js),
+    //     Err(err) => {
+    //         println!("compile error: {:?}", err);
+    //         println!("compile error root cause: {:?}", err.source());
+    //         HttpError::js_compile_fail(err).to_response(err_mime)
+    //     }
+    // })
 }
 
 #[get("/session/{session_id}/page.js.raw")]
