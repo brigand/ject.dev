@@ -1,6 +1,10 @@
 use anyhow::Result;
 use rusqlite::Connection;
 
+pub fn is_production() -> bool {
+    !std::env::var("JECT_PROD").unwrap_or_default().is_empty()
+}
+
 pub fn open_sqlite_env() -> Result<Connection, rusqlite::Error> {
     let mut path = match std::env::var("JECT_DB") {
         Ok(v) if !v.is_empty() => v,

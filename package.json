@@ -4,7 +4,7 @@
   "description": "",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "webpack --config webpack.config.js --mode production",
+    "build": "webpack --config webpack.config.js --mode production --progress",
     "dev": "webpack serve --port 1800 --progress --config webpack.config.js"
   },
   "author": "",

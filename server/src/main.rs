@@ -8,6 +8,7 @@ mod ids;
 mod parser;
 mod state;
 
+use actix_files as fs;
 use actix_web::{
     client::{self, SendRequestError},
     get,
@@ -18,6 +19,7 @@ use actix_web::{
     HttpServer,
     Responder,
 };
+use ov::*;
 
 use crate::db::Db;
 
@@ -89,6 +91,13 @@ async fn main() -> anyhow::Result<()> {
             // .wrap(logger)
             .service(r_index)
             .service(r_dist)
+            .over(|app| {
+                if env::is_production() {
+                    app.service(fs::Files::new("/dist", "./dist"))
+                } else {
+                    app.service(r_dist)
+                }
+            })
             .service(api::service())
     })
     .bind(bind)?
