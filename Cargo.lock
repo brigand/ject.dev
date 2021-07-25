@@ -1723,6 +1723,7 @@ dependencies = [
  "html-escape",
  "indoc",
  "nanoid",
+ "once_cell",
  "owning_ref",
  "rusqlite",
  "serde",

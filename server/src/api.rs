@@ -1,14 +1,13 @@
 use crate::cdn::cdnjs_script;
-use crate::db::{self, Db, DbResult, Key};
+use crate::db::{self, Db, DbResult};
 use crate::http_error::{ErrorMime, HttpError};
+use crate::ids;
 use crate::parser::{parse_html, HtmlPart};
 use crate::state::{File, FileKind, Session, SessionMeta};
-use crate::{ids, DbData};
 use actix_web::{get, post, put, web, HttpResponse, Responder, Scope};
 use db::DbError;
 use serde::Deserialize;
 use serde_json::json;
-use std::borrow::Cow;
 
 #[cfg(debug_assert)]
 const SESSION_LIMIT: u32 = 512;
@@ -42,19 +41,17 @@ async fn put_files(mut db: Db, session_id: &str, session: &Session) -> DbResult<
 }
 
 #[get("/saved/{save_id}")]
-async fn r_get_saved(info: web::Path<String>, db: DbData) -> Result<HttpResponse, DbError> {
+async fn r_get_saved(info: web::Path<String>) -> Result<HttpResponse, DbError> {
+    let db = Db::open_env().await?;
     let save_id = info.0.as_str();
-    let save_key = db::Key::Saved {
-        id: Cow::Borrowed(save_id),
-    };
 
-    let meta: SessionMeta = db.get_json(&save_key)?;
+    let (mut db, meta) = db.get_saved(&save_id).await?;
 
     let mut files = vec![];
     for file_kind in &meta.file_kinds {
         let file_name = file_kind.to_default_name();
-        let file_key = Key::file(save_id, file_name);
-        let contents = db.get_text(&file_key)?;
+        let (db2, contents) = db.get_file(&save_id, file_name).await?;
+        db = db2;
         let file = File::new(*file_kind, contents);
         files.push(file);
     }
@@ -85,15 +82,14 @@ async fn r_post_save(
 #[post("/session/new")]
 async fn r_post_session_new(
     web::Json(SessionNew { session }): web::Json<SessionNew>,
-    db: DbData,
 ) -> Result<HttpResponse, DbError> {
-    let mut db = Db::open_env().await?;
+    let db = Db::open_env().await?;
     let session_id = ids::make_session_id();
 
-    let session_index = db.incr_session_counter(SESSION_LIMIT)?;
+    let (db, session_index) = db.incr_session_counter(SESSION_LIMIT).await?;
 
-    db.put_session_index(session_index, &session_id).await?;
-    db = put_files(db, &session_id, &session).await?;
+    let db = db.put_session_index(session_index, &session_id).await?;
+    let db = put_files(db, &session_id, &session).await?;
 
     let meta = SessionMeta {
         file_kinds: vec![FileKind::JavaScript, FileKind::Css, FileKind::Html],
@@ -110,14 +106,13 @@ struct SessionUpdate {
 }
 
 #[put("/session")]
-async fn r_put_session(info: web::Json<SessionUpdate>, db: DbData) -> db::DbResult<HttpResponse> {
-    let mut db = Db::open_env().await?;
+async fn r_put_session(info: web::Json<SessionUpdate>) -> db::DbResult<HttpResponse> {
+    let db = Db::open_env().await?;
     let SessionUpdate {
         session_id,
         session,
     } = info.0;
 
-    let session_key = Key::session(&session_id);
     let (mut db, session_meta) = match db.get_session(&session_id).await {
         Ok(r) => r,
         Err(err) => {
@@ -166,22 +161,19 @@ async fn try_get_file(
     let res = db
         .get_file(session_id, file_kind.to_default_name())
         .await
-        .map_err(|err| HttpError::file_not_found(err_mime).with_mime(err_mime))?;
+        .map_err(|_err| HttpError::file_not_found(err_mime).with_mime(err_mime))?;
 
     Ok(res)
 }
 
 #[get("/session/{session_id}/page.js")]
-async fn r_get_session_page_js(
-    info: web::Path<String>,
-    db: DbData,
-) -> Result<HttpResponse, HttpError> {
+async fn r_get_session_page_js(info: web::Path<String>) -> Result<HttpResponse, HttpError> {
     let err_mime = ErrorMime::JavaScript;
-    let mut db = Db::open_env()
+    let db = Db::open_env()
         .await
         .map_err(|err| HttpError::db_error(err).with_mime(err_mime))?;
     let session_id = info.0;
-    let (db, code) = try_get_file(db, &session_id, err_mime, FileKind::JavaScript).await?;
+    let (_, code) = try_get_file(db, &session_id, err_mime, FileKind::JavaScript).await?;
 
     Ok(HttpResponse::Ok()
         .header("content-type", "application/javascript; charset=utf-8")
@@ -204,16 +196,13 @@ async fn r_get_session_page_js(
 }
 
 #[get("/session/{session_id}/page.js.raw")]
-async fn r_get_session_page_js_raw(
-    info: web::Path<String>,
-    db: DbData,
-) -> Result<HttpResponse, HttpError> {
+async fn r_get_session_page_js_raw(info: web::Path<String>) -> Result<HttpResponse, HttpError> {
     let err_mime = ErrorMime::JavaScript;
-    let mut db = Db::open_env()
+    let db = Db::open_env()
         .await
         .map_err(|err| HttpError::db_error(err).with_mime(err_mime))?;
     let session_id = info.0;
-    let (db, code) = try_get_file(db, &session_id, err_mime, FileKind::JavaScript).await?;
+    let (_, code) = try_get_file(db, &session_id, err_mime, FileKind::JavaScript).await?;
 
     Ok(HttpResponse::Ok()
         .header("content-type", "application/javascript; charset=utf-8")
@@ -221,16 +210,13 @@ async fn r_get_session_page_js_raw(
 }
 
 #[get("/session/{session_id}/page.css")]
-async fn r_get_session_page_css(
-    info: web::Path<String>,
-    db: DbData,
-) -> Result<HttpResponse, HttpError> {
+async fn r_get_session_page_css(info: web::Path<String>) -> Result<HttpResponse, HttpError> {
     let err_mime = ErrorMime::Css;
-    let mut db = Db::open_env()
+    let db = Db::open_env()
         .await
         .map_err(|err| HttpError::db_error(err).with_mime(err_mime))?;
     let session_id = info.0;
-    let (db, code) = try_get_file(db, &session_id, err_mime, FileKind::Css).await?;
+    let (_, code) = try_get_file(db, &session_id, err_mime, FileKind::Css).await?;
 
     Ok(HttpResponse::Ok()
         .header("content-type", "text/css; charset=utf-8")
@@ -238,17 +224,13 @@ async fn r_get_session_page_css(
 }
 
 #[get("/session/{session_id}/page")]
-async fn r_get_session_page_html(
-    info: web::Path<String>,
-    db: DbData,
-) -> Result<HttpResponse, HttpError> {
+async fn r_get_session_page_html(info: web::Path<String>) -> Result<HttpResponse, HttpError> {
     let err_mime = ErrorMime::Html;
     let session_id = info.0;
-    let mut db = Db::open_env()
+    let db = Db::open_env()
         .await
         .map_err(|err| HttpError::db_error(err).with_mime(err_mime))?;
-    let session_id = info.0;
-    let (db, html) = try_get_file(db, &session_id, err_mime, FileKind::Html).await?;
+    let (_, html) = try_get_file(db, &session_id, err_mime, FileKind::Html).await?;
 
     let parts = match parse_html(&html) {
         Ok(parts) => parts,

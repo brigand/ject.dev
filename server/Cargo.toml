@@ -24,4 +24,5 @@ swc_ecma_parser = "0.62.1"
 swc_ecma_visit = "0.34.0"
 thiserror = "1"
 rusqlite = { version = "0.25.3", features = ["bundled", "backup", "chrono", "serde_json", "blob"] }
+once_cell = "1.8.0"
 # chrono = "0.4"

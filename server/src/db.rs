@@ -2,7 +2,7 @@ use crate::{env::open_sqlite_env, state::SessionMeta};
 use actix_rt::blocking::BlockingError;
 use actix_web::{guard::Connect, http::StatusCode, web::block, HttpResponse, ResponseError};
 use owning_ref::OwningRef;
-use rusqlite::{params, Connection, Result};
+use rusqlite::{params, Connection, Result, Row};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::{borrow::Cow, fmt::Debug, sync::Mutex};
@@ -12,16 +12,19 @@ pub type DbResult<T, E = DbError> = Result<T, E>;
 
 #[derive(Debug, Error)]
 pub enum DbError {
-    #[error("Failed to open rocksdb database")]
+    #[error("Failed to open database")]
     Open { source: anyhow::Error },
 
-    #[error(
-        "Failed to get key {}. This is different from a key not existing.",
-        key_debug
-    )]
-    GetKey {
+    #[error("Attempted to query one row but it returned no results")]
+    NotFound {
         source: rusqlite::Error,
-        key_debug: String,
+        sql: String,
+    },
+
+    #[error("Attempted to query one row but it returnd an unexpected error")]
+    QueryRowOther {
+        source: rusqlite::Error,
+        sql: String,
     },
 
     #[error("Failed to create table. SQL: {}", sql)]
@@ -66,12 +69,17 @@ pub enum DbError {
     PutSaved {
         source: rusqlite::Error,
         saved_id: String,
-        meta: String,
+        file_kinds: String,
     },
     #[error("Failed insert a Session Index for session {}", session_id)]
     PutSessionIndex {
         source: rusqlite::Error,
         session_id: String,
+    },
+    #[error("Failed to update the session counter. Action: {}", action)]
+    SessionCounter {
+        source: rusqlite::Error,
+        action: &'static str,
     },
 
     #[error(
@@ -93,7 +101,7 @@ pub enum DbError {
 
     #[error("Unable to get the temporary session with id {}", session_id)]
     GetSession {
-        source: rusqlite::Error,
+        source: Box<Self>,
         session_id: String,
     },
 
@@ -139,7 +147,7 @@ impl DbError {
     pub fn code(&self) -> &'static str {
         match self {
             DbError::Open { .. } => "db_open",
-            DbError::GetKey { .. } => "db_get_key",
+
             DbError::KeyNotFound { .. } => "db_key_not_found",
             DbError::Utf8 { .. } => "db_utf8",
             DbError::DeserializeJson { .. } => "db_deserialize_json",
@@ -154,6 +162,9 @@ impl DbError {
             DbError::GetFile { .. } => "db_get_file",
             DbError::GetSaved { .. } => "db_get_saved",
             DbError::GetSession { .. } => "db_get_session",
+            DbError::SessionCounter { .. } => "db_session_counter",
+            DbError::NotFound { .. } => "db_row_not_found",
+            DbError::QueryRowOther { .. } => "db_row_other_error",
         }
     }
     pub fn to_response(&self) -> HttpResponse {
@@ -170,7 +181,7 @@ CREATE TABLE IF NOT EXISTS kv (
 "#,
     r#"
 CREATE TABLE IF NOT EXISTS file (
-    file_id INTEGER PRIMARY KEY,
+    file_id TEXT PRIMARY KEY,
     session_or_saved_id BLOB,
     name TEXT NOT NULL,
     contents BLOB
@@ -179,24 +190,25 @@ CREATE TABLE IF NOT EXISTS file (
     r#"
 CREATE TABLE IF NOT EXISTS saved (
     saved_id BLOB PRIMARY KEY,
-    file_types BLOB
+    file_kinds BLOB
 )
 "#,
     r#"
 CREATE TABLE IF NOT EXISTS session (
     session_id BLOB PRIMARY KEY,
-    file_types BLOB
+    file_kinds BLOB
 )
 "#,
     r#"
 CREATE TABLE IF NOT EXISTS session_index (
-    index INTEGER NON NULL,
-    session_id BLOB,
+    idx INTEGER PRIMARY KEY NOT NULL,
+    session_id BLOB
 )
 "#,
     r#"
 CREATE TABLE IF NOT EXISTS session_counter (
-    count INTEGER NON NULL,
+    id INTEGER PRIMARY KEY CHECK (id = 0),
+    count INTEGER NON NULL
 )
 "#,
 ];
@@ -302,7 +314,6 @@ impl KeyLike for KeyRendered<'_> {
 #[derive(Debug)]
 pub struct Db {
     db: Connection,
-    session_counter_lock: Mutex<()>,
 }
 
 impl Db {
@@ -311,10 +322,7 @@ impl Db {
     pub async fn open_env() -> DbResult<Self> {
         let db = actix_web::web::block(|| {
             open_sqlite_env()
-                .map(|db| Self {
-                    db,
-                    session_counter_lock: Default::default(),
-                })
+                .map(|db| Self { db })
                 .map_err(|source| DbError::Open {
                     source: source.into(),
                 })
@@ -325,17 +333,21 @@ impl Db {
     }
 
     /// Creates all tables if they don't already exist
-    pub fn create_tables(&self) -> DbResult<()> {
-        for create_table in TABLES.into_iter().copied() {
-            self.db
-                .execute(create_table, [])
-                .map_err(|source| DbError::CreateTable {
-                    sql: create_table.to_owned(),
-                    source,
-                })?;
-        }
+    pub async fn create_tables(self) -> DbResult<Self> {
+        let self2 = block(move || {
+            for create_table in TABLES.into_iter().copied() {
+                self.db
+                    .execute(create_table, [])
+                    .map_err(|source| DbError::CreateTable {
+                        sql: create_table.to_owned(),
+                        source,
+                    })?;
+            }
+            Ok(self)
+        })
+        .await?;
 
-        Ok(())
+        Ok(self2)
     }
 
     /// Store an entry in the 'file' table, associated with a 'saved' or 'session'.
@@ -349,10 +361,11 @@ impl Db {
         let file_name = file_name.to_owned();
         let contents = contents.to_owned();
         let self2 = block(move || {
+            let file_id = format!("{}::{}", session_or_saved_id, file_name);
             self.db
                 .execute(
-                    r#"UPSERT INTO file (session_or_saved_id, name, contents) VALUES (?, ?, ?)"#,
-                    rusqlite::params![session_or_saved_id, file_name, contents],
+                    r#"INSERT INTO file (file_id, session_or_saved_id, name, contents) VALUES (?1, ?2, ?3, ?4) ON CONFLICT(file_id) DO UPDATE SET contents=?4"#,
+                    params![file_id, session_or_saved_id, file_name, contents],
                 )
                 .map(|_| self)
                 .map_err(|source| DbError::PutFile {
@@ -369,19 +382,20 @@ impl Db {
     /// Store an entry in the 'saved' table.
     pub async fn put_saved(self, saved_id: &str, meta: SessionMeta) -> DbResult<Self> {
         let saved_id = saved_id.to_owned();
-        let meta = serde_json::to_string(&meta).expect("ject: SessionMeta to json");
+        let file_kinds =
+            serde_json::to_string(&meta.file_kinds).expect("ject: SessionMeta to json");
 
         let self2 = block(move || {
             self.db
                 .execute(
-                    r#"UPSERT INTO saved (saved_id, meta) VALUES (?, ?)"#,
-                    rusqlite::params![saved_id, meta],
+                    r#"INSERT INTO saved (saved_id, file_kinds) VALUES (?1, ?2) ON CONFLICT(saved_id) DO UPDATE SET file_kinds=?2"#,
+                    params![saved_id, file_kinds],
                 )
                 .map(|_| self)
                 .map_err(|source| DbError::PutSaved {
                     source,
                     saved_id,
-                    meta,
+                    file_kinds,
                 })
         })
         .await?;
@@ -392,19 +406,20 @@ impl Db {
     /// Store an entry in the 'session' table.
     pub async fn put_session(self, session_id: &str, meta: SessionMeta) -> DbResult<Self> {
         let session_id = session_id.to_owned();
-        let meta = serde_json::to_string(&meta).expect("ject: SessionMeta to json");
+        let file_kinds =
+            serde_json::to_string(&meta.file_kinds).expect("ject: SessionMeta to json");
 
         let self2 = block(move || {
             self.db
                 .execute(
-                    r#"UPSERT INTO session (session_id, meta) VALUES (?, ?)"#,
-                    rusqlite::params![session_id, meta],
+                    r#"INSERT INTO session (session_id, file_kinds) VALUES (?1, ?2) ON CONFLICT(session_id) DO UPDATE SET file_kinds=?2"#,
+                    params![session_id, file_kinds],
                 )
                 .map(|_| self)
                 .map_err(|source| DbError::PutSaved {
                     source,
                     saved_id: session_id,
-                    meta,
+                    file_kinds,
                 })
         })
         .await?;
@@ -419,8 +434,8 @@ impl Db {
         let self2 = block(move || {
             self.db
                 .execute(
-                    r#"UPSERT INTO session_index (index, session_id) VALUES (?, ?)"#,
-                    rusqlite::params![index, session_id],
+                    r#"INSERT INTO session_index (idx, session_id) VALUES (?1, ?2) ON CONFLICT(idx) DO UPDATE SET session_id=?2"#,
+                    params![index, session_id],
                 )
                 .map(|_| self)
                 .map_err(|source| DbError::PutSessionIndex {
@@ -445,7 +460,7 @@ impl Db {
             self.db
                 .query_row(
                     r#"SELECT contents FROM file WHERE session_or_saved_id = ? AND name = ?"#,
-                    rusqlite::params![session_or_saved_id, file_name],
+                    params![session_or_saved_id, file_name],
                     |row| row.get(0),
                 )
                 .map(|contents| (self, contents))
@@ -467,7 +482,7 @@ impl Db {
             self.db
                 .query_row(
                     r#"SELECT meta FROM saved WHERE saved_id = ?"#,
-                    rusqlite::params![saved_id],
+                    params![saved_id],
                     |row| row.get(0),
                 )
                 .map_err(|source| DbError::GetSaved { source, saved_id })
@@ -485,65 +500,76 @@ impl Db {
         Ok(SessionMeta { file_kinds })
     }
 
+    fn query_row<T, P, F>(&self, sql: &str, params: P, f: F) -> DbResult<T>
+    where
+        P: rusqlite::Params,
+        F: FnOnce(&Row<'_>) -> rusqlite::Result<T>,
+    {
+        use rusqlite::Error::*;
+        self.db
+            .query_row(sql, params, f)
+            .map_err(|source| match source {
+                QueryReturnedNoRows => DbError::NotFound {
+                    source,
+                    sql: sql.to_owned(),
+                },
+                _ => DbError::QueryRowOther {
+                    source,
+                    sql: sql.to_owned(),
+                },
+            })
+    }
+
     pub async fn get_session(self, session_id: &str) -> DbResult<(Self, SessionMeta)> {
         let session_id = session_id.to_owned();
 
         let self2 = block(move || {
-            self.db
-                .query_row(
-                    r#"SELECT file_types FROM session WHERE session_id = ?"#,
-                    rusqlite::params![session_id],
-                    |row| row.get(0),
-                )
-                .map_err(|source| DbError::GetSession { source, session_id })
-                .and_then(Self::parse_meta)
-                .map(|meta| (self, meta))
+            self.query_row(
+                r#"SELECT file_kinds FROM session WHERE session_id = ?"#,
+                params![session_id],
+                |row| row.get(0),
+            )
+            .map_err(|source| DbError::GetSession {
+                source: Box::new(source),
+                session_id,
+            })
+            .and_then(Self::parse_meta)
+            .map(|meta| (self, meta))
         })
         .await?;
 
         Ok(self2)
     }
 
-    pub fn incr_session_counter(&self, max_value: u32) -> DbResult<u32> {
-        let _lock = self
-            .session_counter_lock
-            .lock()
-            .expect("session_counter_lock should never be poisoned");
-        let key = Key::SessionCounter.render();
-        let mut next = match self.get_json::<u32>(&key) {
-            Ok(current) => current % max_value,
+    pub async fn incr_session_counter(self, max_value: u32) -> DbResult<(Self, u32)> {
+        static SESSION_LOCK: once_cell::sync::Lazy<Mutex<()>> =
+            once_cell::sync::Lazy::new(|| Default::default());
 
-            Err(DbError::KeyNotFound { .. }) => 0,
-            Err(err) => return Err(err),
-        };
+        let r =        block(move ||{
+            let _lock = SESSION_LOCK.lock().expect("session_counter_lock should never be poisoned");
 
-        if next < max_value {
-            next += 1;
-        } else {
-            next = 1;
-        }
-
-        // Remove existing session at this index if any.
-        let existing_key = Key::SessionIndex { index: next };
-        match self.get_json::<String>(&existing_key) {
-            Ok(session_id) => {
-                let session_key = Key::Session {
-                    session_id: Cow::Owned(session_id),
-                };
-                let _r = self.remove_key(&existing_key);
-                let _r = self.remove_key(&session_key);
-            }
-            Err(DbError::DeserializeJson { .. }) => {
-                let _r = self.remove_key(&existing_key);
-            }
-            Err(DbError::KeyNotFound { .. }) => {
-                // Do nothing
-            }
-            Err(err) => return Err(err),
-        };
-
-        self.put_json(&key, next)?;
-
-        Ok(next)
+            let current: u32 = self.db.query_row(
+                r#"SELECT count FROM session_counter LIMIT 1"#,
+                [],
+                |row| row.get(0),
+            ).ok().unwrap_or(0);
+            let next = current.wrapping_add(1) % max_value;
+            println!("Session counter current: {}, next: {}", current, next);
+            self.db
+                .execute(
+                    r#"INSERT INTO session_counter (id, count) VALUES (0, ?1) ON CONFLICT (id) DO UPDATE SET count = ?1"#,
+                    params![next],
+                )
+                .map_err(|source| DbError::SessionCounter { source, action: "upsert" } )?;
+            let deleted = self.db
+                .execute(
+                    r#"DELETE FROM file WHERE file_id IN (SELECT file_id FROM file a INNER JOIN session_index b ON (b.session_id = a.session_or_saved_id) WHERE b.idx = ?)"#,
+                    [next],
+                )
+                .map_err(|source| DbError::SessionCounter { source, action: "delete" } )?;
+            println!("Deleted {} row(s) for old session with same index", deleted);
+            Ok((self, next))
+        }).await?;
+        Ok(r)
     }
 }

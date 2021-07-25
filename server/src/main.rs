@@ -4,13 +4,11 @@ mod db;
 mod env;
 mod http_error;
 mod ids;
-mod js;
+// mod js;
 mod parser;
 mod state;
 
 use std::sync::Arc;
-
-pub type DbData = actix_web::web::Data<Arc<db::IjDb>>;
 
 use actix_web::{
     client::{self, SendRequestError},
@@ -22,6 +20,8 @@ use actix_web::{
     HttpServer,
     Responder,
 };
+
+use crate::db::Db;
 
 #[get("/")]
 async fn r_index() -> impl Responder {
@@ -79,7 +79,8 @@ async fn r_dist(req: HttpRequest) -> Result<HttpResponse, SendRequestError> {
 async fn main() -> anyhow::Result<()> {
     env_logger::init();
 
-    let db = Arc::new(db::IjDb::open_env()?);
+    Db::open_env().await?.create_tables().await?;
+    println!("Created tables");
 
     let bind = "0.0.0.0:1950";
     println!("Starting server on {}", bind);
@@ -88,7 +89,6 @@ async fn main() -> anyhow::Result<()> {
         // let logger = Logger::default().exclude("/dist/");
         App::new()
             // .wrap(logger)
-            .data(db.clone())
             .service(r_index)
             .service(r_dist)
             .service(api::service())
