@@ -1,7 +1,6 @@
 use crate::{env::open_sqlite_env, state::SessionMeta};
 use actix_rt::blocking::BlockingError;
-use actix_web::{guard::Connect, http::StatusCode, web::block, HttpResponse, ResponseError};
-use owning_ref::OwningRef;
+use actix_web::{http::StatusCode, web::block, HttpResponse, ResponseError};
 use rusqlite::{params, Connection, Result, Row};
 use serde::{Deserialize, Serialize};
 use serde_json::json;

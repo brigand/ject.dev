@@ -8,8 +8,6 @@ mod ids;
 mod parser;
 mod state;
 
-use std::sync::Arc;
-
 use actix_web::{
     client::{self, SendRequestError},
     get,
