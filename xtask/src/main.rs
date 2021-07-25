@@ -42,24 +42,47 @@ fn dist() -> Result<(), DynError> {
 }
 
 static BUILDER_TAG: &str = "ject-musl-builder";
+// static BUILDER_IMAGE: &str = BUILDER_TAG;
+static BUILDER_IMAGE: &str = "brigand/rust-musl-builder";
 
 fn docker_build_musl() -> Result<(), DynError> {
-    println!("Building ject/musl/Dockerfile with tag {}", BUILDER_TAG);
-    let status = docker_command()
-        .current_dir(&musl_dir())
-        .args(&["build", "-t", BUILDER_TAG, "."])
-        .status()?;
+    return Ok(());
+    // println!("Building ject/musl/Dockerfile with tag {}", BUILDER_TAG);
+    // let status = docker_command()
+    //     .current_dir(&musl_dir())
+    //     .args(&["build", "-t", BUILDER_TAG, "."])
+    //     .status()?;
 
-    if !status.success() {
-        Err("building musl/Dockerfile failed")?;
-    }
+    // if !status.success() {
+    //     Err("building musl/Dockerfile failed")?;
+    // }
 
-    Ok(())
+    // Ok(())
+}
+
+fn docker_run_builder(command_args: &[&str]) -> Command {
+    let volume_1 = format!("{}:/home/rust/src", project_root().display());
+    let mut args = vec![
+        "run",
+        "--rm",
+        "-it",
+        "-v",
+        &volume_1,
+        "-v",
+        "cargo-git:/home/rust/.cargo/git",
+        "-v",
+        "cargo-registry:/home/rust/.cargo/registry",
+        BUILDER_IMAGE,
+    ];
+    args.extend(command_args.into_iter());
+    let mut cmd = docker_command();
+    cmd.args(args);
+    cmd
 }
 
 fn dist_binary() -> Result<(), DynError> {
     // let cargo = ;
-    let volume_1 = format!("{}:/home/rust/src", project_root().display());
+
     // let image = "ekidd/rust-musl-builder:nightly-2021-02-13";
 
     // let status = Command::new("docker").args(&["pull", image]).status()?;
@@ -67,31 +90,26 @@ fn dist_binary() -> Result<(), DynError> {
     //     Err("docker pull failed")?;
     // }
 
-    let status = docker_command()
-        .args(&[
-            "run",
-            "--rm",
-            "-it",
-            "-v",
-            &volume_1,
-            // "-v",
-            // "cargo-git:/home/rust/.cargo/git",
-            // "-v",
-            // "cargo-registry:/home/rust/.cargo/registry",
-            BUILDER_TAG,
-            "cargo",
-            "build",
-            "--release",
-            "-p",
-            "server",
-        ])
-        .status()?;
+    let status = docker_run_builder(&[
+        "sudo",
+        "chown",
+        "-R",
+        "rust:rust",
+        "/home/rust/.cargo/git",
+        "/home/rust/.cargo/registry",
+    ])
+    .status()?;
+    if !status.success() {
+        Err("failed to set ownership of .cargo/git and .cargo/registry")?;
+    }
+    println!("Updated permissions");
+    let status = docker_run_builder(&["cargo", "build", "--release", "-p", "server"]).status()?;
 
     if !status.success() {
         Err("docker musl build failed")?;
     }
 
-    let dst = project_root().join("target/release/server");
+    let dst = project_root().join("target/x86_64-unknown-linux-musl/release/server");
 
     fs::copy(&dst, dist_dir().join("ject-server"))?;
 
