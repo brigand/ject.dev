@@ -1,7 +1,7 @@
 use std::{
     env, fs,
     path::{Path, PathBuf},
-    process::{Command, Stdio},
+    process::Command,
 };
 
 type DynError = Box<dyn std::error::Error>;
@@ -141,12 +141,12 @@ fn musl_dir() -> PathBuf {
     project_relative("musl")
 }
 
-fn cargo_command() -> Command {
-    let path = env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
-    let mut cmd = Command::new(path);
-    cmd.current_dir(project_root());
-    cmd
-}
+// fn cargo_command() -> Command {
+//     let path = env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
+//     let mut cmd = Command::new(path);
+//     cmd.current_dir(project_root());
+//     cmd
+// }
 
 fn docker_command() -> Command {
     let mut cmd = Command::new("docker");

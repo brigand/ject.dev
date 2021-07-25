@@ -42,6 +42,9 @@ pub enum DbError {
         source: serde_json::Error,
     },
 
+    #[error("Failed to deserialize file_kinds")]
+    DeFileKinds { source: serde_json::Error },
+
     #[error("Failed to serialize the value of key {}", key_debug)]
     SerializeValue {
         source: serde_json::Error,
@@ -67,6 +70,29 @@ pub enum DbError {
     },
     #[error("Failed insert a Session Index for session {}", session_id)]
     PutSessionIndex {
+        source: rusqlite::Error,
+        session_id: String,
+    },
+
+    #[error(
+        "Unable to get the file named {} in saved/session {}",
+        file_name,
+        session_or_saved_id
+    )]
+    GetFile {
+        source: rusqlite::Error,
+        session_or_saved_id: String,
+        file_name: String,
+    },
+
+    #[error("Unable to get the saved session with id {}", saved_id)]
+    GetSaved {
+        source: rusqlite::Error,
+        saved_id: String,
+    },
+
+    #[error("Unable to get the temporary session with id {}", session_id)]
+    GetSession {
         source: rusqlite::Error,
         session_id: String,
     },
@@ -116,12 +142,18 @@ impl DbError {
             DbError::GetKey { .. } => "db_get_key",
             DbError::KeyNotFound { .. } => "db_key_not_found",
             DbError::Utf8 { .. } => "db_utf8",
-            DbError::DeserializeJson { .. } => "db_deser_json",
+            DbError::DeserializeJson { .. } => "db_deserialize_json",
             DbError::SerializeValue { .. } => "db_ser_value",
-            DbError::Put { .. } => "db_put_value",
             DbError::UnableToRemoveKey { .. } => "db_remove_key",
-            DbError::CreateTable { source, sql } => "db_create_table",
-            DbError::BlockCanceled {} => "db_block_canceled",
+            DbError::CreateTable { .. } => "db_create_table",
+            DbError::BlockCanceled { .. } => "db_block_canceled",
+            DbError::DeFileKinds { .. } => "db_de_file_kinds",
+            DbError::PutFile { .. } => "db_put_file",
+            DbError::PutSaved { .. } => "db_put_saved",
+            DbError::PutSessionIndex { .. } => "db_put_session_index",
+            DbError::GetFile { .. } => "db_get_file",
+            DbError::GetSaved { .. } => "db_get_saved",
+            DbError::GetSession { .. } => "db_get_session",
         }
     }
     pub fn to_response(&self) -> HttpResponse {
@@ -381,7 +413,7 @@ impl Db {
     }
 
     /// Store an entry in the 'session_index' table.
-    pub async fn put_session_index(self, index: usize, session_id: &str) -> DbResult<Self> {
+    pub async fn put_session_index(self, index: u32, session_id: &str) -> DbResult<Self> {
         let session_id = session_id.to_owned();
 
         let self2 = block(move || {
@@ -395,6 +427,77 @@ impl Db {
                     source,
                     session_id: session_id,
                 })
+        })
+        .await?;
+
+        Ok(self2)
+    }
+
+    pub async fn get_file(
+        self,
+        session_or_saved_id: &str,
+        file_name: &str,
+    ) -> DbResult<(Self, String)> {
+        let session_or_saved_id = session_or_saved_id.to_owned();
+        let file_name = file_name.to_owned();
+
+        let self2 = block(move || {
+            self.db
+                .query_row(
+                    r#"SELECT contents FROM file WHERE session_or_saved_id = ? AND name = ?"#,
+                    rusqlite::params![session_or_saved_id, file_name],
+                    |row| row.get(0),
+                )
+                .map(|contents| (self, contents))
+                .map_err(|source| DbError::GetFile {
+                    source,
+                    file_name,
+                    session_or_saved_id,
+                })
+        })
+        .await?;
+
+        Ok(self2)
+    }
+
+    pub async fn get_saved(self, saved_id: &str) -> DbResult<(Self, SessionMeta)> {
+        let saved_id = saved_id.to_owned();
+
+        let self2 = block(move || {
+            self.db
+                .query_row(
+                    r#"SELECT meta FROM saved WHERE saved_id = ?"#,
+                    rusqlite::params![saved_id],
+                    |row| row.get(0),
+                )
+                .map_err(|source| DbError::GetSaved { source, saved_id })
+                .and_then(Self::parse_meta)
+                .map(|meta| (self, meta))
+        })
+        .await?;
+
+        Ok(self2)
+    }
+
+    fn parse_meta(file_kinds: Vec<u8>) -> Result<SessionMeta, DbError> {
+        let file_kinds = serde_json::from_slice(&file_kinds)
+            .map_err(|source| DbError::DeFileKinds { source })?;
+        Ok(SessionMeta { file_kinds })
+    }
+
+    pub async fn get_session(self, session_id: &str) -> DbResult<(Self, SessionMeta)> {
+        let session_id = session_id.to_owned();
+
+        let self2 = block(move || {
+            self.db
+                .query_row(
+                    r#"SELECT file_types FROM session WHERE session_id = ?"#,
+                    rusqlite::params![session_id],
+                    |row| row.get(0),
+                )
+                .map_err(|source| DbError::GetSession { source, session_id })
+                .and_then(Self::parse_meta)
+                .map(|meta| (self, meta))
         })
         .await?;
 

@@ -92,21 +92,13 @@ async fn r_post_session_new(
 
     let session_index = db.incr_session_counter(SESSION_LIMIT)?;
 
-    let si_key = db::Key::SessionIndex {
-        index: session_index,
-    };
-    db.put_json(&si_key, &session_id)?;
-
-    let sess_key = db::Key::Session {
-        session_id: Cow::Borrowed(session_id.as_str()),
-    };
-
+    db.put_session_index(session_index, &session_id).await?;
     db = put_files(db, &session_id, &session).await?;
 
     let meta = SessionMeta {
         file_kinds: vec![FileKind::JavaScript, FileKind::Css, FileKind::Html],
     };
-    db.put_saved(&session_id, meta).await?;
+    db.put_session(&session_id, meta).await?;
 
     Ok(HttpResponse::Ok().json(json!({ "session_id": session_id })))
 }
@@ -119,23 +111,31 @@ struct SessionUpdate {
 
 #[put("/session")]
 async fn r_put_session(info: web::Json<SessionUpdate>, db: DbData) -> db::DbResult<HttpResponse> {
+    let mut db = Db::open_env().await?;
     let SessionUpdate {
         session_id,
         session,
     } = info.0;
 
     let session_key = Key::session(&session_id);
-    let session_meta = match db.get_json::<SessionMeta>(&session_key) {
-        Err(DbError::KeyNotFound { .. }) => return Ok(HttpResponse::UnprocessableEntity().json(json!({"code": "session_not_found", "message": "Unable to find the specified session", "input_session_id": session_id}))) ,
-        Err(other) => return Err(other),
-        Ok(session_meta) => session_meta
+    let (mut db, session_meta) = match db.get_session(&session_id).await {
+        Ok(r) => r,
+        Err(err) => {
+            eprintln!(
+                "get_session error, session id = {}, error: {:?}",
+                session_id, err
+            );
+            return Ok(HttpResponse::UnprocessableEntity().json(json!({
+                "code": "session_not_found",
+                "message": "Unable to find the specified session", "input_session_id": session_id
+            })));
+        }
     };
 
     let mut kinds = vec![];
     for file in &session.files {
         let file_name = file.kind.to_default_name();
-        let file_key = Key::file(&session_id, file_name);
-        db.put_text(&file_key, &file.contents)?;
+        db = db.put_file(&session_id, file_name, &file.contents).await?;
         if !kinds.contains(&file.kind) {
             kinds.push(file.kind);
         }
@@ -146,28 +146,29 @@ async fn r_put_session(info: web::Json<SessionUpdate>, db: DbData) -> db::DbResu
             file_kinds: kinds,
             ..session_meta
         };
-        db.put_json(&session_key, new_meta)?;
+        db.put_session(&session_id, new_meta).await?;
     }
 
     Ok(HttpResponse::Ok().json(json!({})))
 }
 
-fn try_get_file(
-    db: &IjDb,
+async fn try_get_file(
+    db: Db,
     session_id: &str,
     err_mime: ErrorMime,
     file_kind: FileKind,
-) -> Result<String, HttpError> {
-    let session_key = Key::session(&session_id);
-    let _session = db
-        .get_bytes_pinned(&session_key)
+) -> Result<(Db, String), HttpError> {
+    let (db, _session) = db
+        .get_session(session_id)
+        .await
         .map_err(|err| HttpError::db_error(err).with_mime(err_mime))?;
-    let file_key = Key::file(&session_id, file_kind.to_default_name());
 
-    db.get_text(&file_key).map_err(|err| match err {
-        DbError::KeyNotFound { .. } => HttpError::file_not_found(err_mime).with_mime(err_mime),
-        _ => HttpError::db_error(err).with_mime(err_mime),
-    })
+    let res = db
+        .get_file(session_id, file_kind.to_default_name())
+        .await
+        .map_err(|err| HttpError::file_not_found(err_mime).with_mime(err_mime))?;
+
+    Ok(res)
 }
 
 #[get("/session/{session_id}/page.js")]
@@ -175,9 +176,12 @@ async fn r_get_session_page_js(
     info: web::Path<String>,
     db: DbData,
 ) -> Result<HttpResponse, HttpError> {
-    let session_id = info.0;
     let err_mime = ErrorMime::JavaScript;
-    let code = try_get_file(&db, &session_id, err_mime, FileKind::JavaScript)?;
+    let mut db = Db::open_env()
+        .await
+        .map_err(|err| HttpError::db_error(err).with_mime(err_mime))?;
+    let session_id = info.0;
+    let (db, code) = try_get_file(db, &session_id, err_mime, FileKind::JavaScript).await?;
 
     Ok(HttpResponse::Ok()
         .header("content-type", "application/javascript; charset=utf-8")
@@ -204,9 +208,12 @@ async fn r_get_session_page_js_raw(
     info: web::Path<String>,
     db: DbData,
 ) -> Result<HttpResponse, HttpError> {
-    let session_id = info.0;
     let err_mime = ErrorMime::JavaScript;
-    let code = try_get_file(&db, &session_id, err_mime, FileKind::JavaScript)?;
+    let mut db = Db::open_env()
+        .await
+        .map_err(|err| HttpError::db_error(err).with_mime(err_mime))?;
+    let session_id = info.0;
+    let (db, code) = try_get_file(db, &session_id, err_mime, FileKind::JavaScript).await?;
 
     Ok(HttpResponse::Ok()
         .header("content-type", "application/javascript; charset=utf-8")
@@ -218,9 +225,12 @@ async fn r_get_session_page_css(
     info: web::Path<String>,
     db: DbData,
 ) -> Result<HttpResponse, HttpError> {
-    let session_id = info.0;
     let err_mime = ErrorMime::Css;
-    let code = try_get_file(&db, &session_id, err_mime, FileKind::Css)?;
+    let mut db = Db::open_env()
+        .await
+        .map_err(|err| HttpError::db_error(err).with_mime(err_mime))?;
+    let session_id = info.0;
+    let (db, code) = try_get_file(db, &session_id, err_mime, FileKind::Css).await?;
 
     Ok(HttpResponse::Ok()
         .header("content-type", "text/css; charset=utf-8")
@@ -234,7 +244,11 @@ async fn r_get_session_page_html(
 ) -> Result<HttpResponse, HttpError> {
     let err_mime = ErrorMime::Html;
     let session_id = info.0;
-    let html = try_get_file(&db, &session_id, err_mime, FileKind::Html)?;
+    let mut db = Db::open_env()
+        .await
+        .map_err(|err| HttpError::db_error(err).with_mime(err_mime))?;
+    let session_id = info.0;
+    let (db, html) = try_get_file(db, &session_id, err_mime, FileKind::Html).await?;
 
     let parts = match parse_html(&html) {
         Ok(parts) => parts,
