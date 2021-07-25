@@ -33,26 +33,8 @@ pub enum DbError {
         sql: String,
     },
 
-    #[error("The key {} does not exist", key_debug)]
-    KeyNotFound { key_debug: String },
-
-    #[error("The key {} has a value that is invalid UTF-8", key_debug)]
-    Utf8 { key_debug: String },
-
-    #[error("Failed to deserialize the value of key {}", key_debug)]
-    DeserializeJson {
-        key_debug: String,
-        source: serde_json::Error,
-    },
-
     #[error("Failed to deserialize file_kinds")]
     DeFileKinds { source: serde_json::Error },
-
-    #[error("Failed to serialize the value of key {}", key_debug)]
-    SerializeValue {
-        source: serde_json::Error,
-        key_debug: String,
-    },
 
     #[error(
         "Failed insert a file {} into the database for session/saved {}",
@@ -94,21 +76,12 @@ pub enum DbError {
     },
 
     #[error("Unable to get the saved session with id {}", saved_id)]
-    GetSaved {
-        source: rusqlite::Error,
-        saved_id: String,
-    },
+    GetSaved { source: Box<Self>, saved_id: String },
 
     #[error("Unable to get the temporary session with id {}", session_id)]
     GetSession {
         source: Box<Self>,
         session_id: String,
-    },
-
-    #[error("Unable to remove the key {}", key_debug)]
-    UnableToRemoveKey {
-        source: rusqlite::Error,
-        key_debug: String,
     },
 
     #[error("The blocking operation was canceled")]
@@ -127,7 +100,7 @@ impl From<BlockingError<DbError>> for DbError {
 impl ResponseError for DbError {
     fn status_code(&self) -> actix_web::http::StatusCode {
         match self {
-            DbError::KeyNotFound { .. } => StatusCode::NOT_FOUND,
+            DbError::NotFound { .. } => StatusCode::NOT_FOUND,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
@@ -147,12 +120,6 @@ impl DbError {
     pub fn code(&self) -> &'static str {
         match self {
             DbError::Open { .. } => "db_open",
-
-            DbError::KeyNotFound { .. } => "db_key_not_found",
-            DbError::Utf8 { .. } => "db_utf8",
-            DbError::DeserializeJson { .. } => "db_deserialize_json",
-            DbError::SerializeValue { .. } => "db_ser_value",
-            DbError::UnableToRemoveKey { .. } => "db_remove_key",
             DbError::CreateTable { .. } => "db_create_table",
             DbError::BlockCanceled { .. } => "db_block_canceled",
             DbError::DeFileKinds { .. } => "db_de_file_kinds",
@@ -175,34 +142,34 @@ impl DbError {
 static TABLES: &[&str] = &[
     r#"
 CREATE TABLE IF NOT EXISTS kv (
-    key BLOB PRIMARY KEY,
+    key TEXT PRIMARY KEY,
     value BLOB
 )
 "#,
     r#"
 CREATE TABLE IF NOT EXISTS file (
     file_id TEXT PRIMARY KEY,
-    session_or_saved_id BLOB,
+    session_or_saved_id TEXT,
     name TEXT NOT NULL,
-    contents BLOB
+    contents TEXT
 )
 "#,
     r#"
 CREATE TABLE IF NOT EXISTS saved (
-    saved_id BLOB PRIMARY KEY,
-    file_kinds BLOB
+    saved_id TEXT PRIMARY KEY,
+    file_kinds TEXT
 )
 "#,
     r#"
 CREATE TABLE IF NOT EXISTS session (
-    session_id BLOB PRIMARY KEY,
-    file_kinds BLOB
+    session_id TEXT PRIMARY KEY,
+    file_kinds TEXT
 )
 "#,
     r#"
 CREATE TABLE IF NOT EXISTS session_index (
     idx INTEGER PRIMARY KEY NOT NULL,
-    session_id BLOB
+    session_id TEXT
 )
 "#,
     r#"
@@ -330,6 +297,26 @@ impl Db {
         .await?;
 
         Ok(db)
+    }
+
+    fn query_row<T, P, F>(&self, sql: &str, params: P, f: F) -> DbResult<T>
+    where
+        P: rusqlite::Params,
+        F: FnOnce(&Row<'_>) -> rusqlite::Result<T>,
+    {
+        use rusqlite::Error::*;
+        self.db
+            .query_row(sql, params, f)
+            .map_err(|source| match source {
+                QueryReturnedNoRows => DbError::NotFound {
+                    source,
+                    sql: sql.to_owned(),
+                },
+                _ => DbError::QueryRowOther {
+                    source,
+                    sql: sql.to_owned(),
+                },
+            })
     }
 
     /// Creates all tables if they don't already exist
@@ -475,49 +462,31 @@ impl Db {
         Ok(self2)
     }
 
+    fn parse_meta(file_kinds: String) -> Result<SessionMeta, DbError> {
+        let file_kinds =
+            serde_json::from_str(&file_kinds).map_err(|source| DbError::DeFileKinds { source })?;
+        Ok(SessionMeta { file_kinds })
+    }
+
     pub async fn get_saved(self, saved_id: &str) -> DbResult<(Self, SessionMeta)> {
         let saved_id = saved_id.to_owned();
 
         let self2 = block(move || {
-            self.db
-                .query_row(
-                    r#"SELECT meta FROM saved WHERE saved_id = ?"#,
-                    params![saved_id],
-                    |row| row.get(0),
-                )
-                .map_err(|source| DbError::GetSaved { source, saved_id })
-                .and_then(Self::parse_meta)
-                .map(|meta| (self, meta))
+            self.query_row(
+                r#"SELECT file_kinds FROM saved WHERE saved_id = ?"#,
+                params![saved_id],
+                |row| row.get(0),
+            )
+            .map_err(|source| DbError::GetSaved {
+                source: Box::new(source),
+                saved_id,
+            })
+            .and_then(Self::parse_meta)
+            .map(|meta| (self, meta))
         })
         .await?;
 
         Ok(self2)
-    }
-
-    fn parse_meta(file_kinds: Vec<u8>) -> Result<SessionMeta, DbError> {
-        let file_kinds = serde_json::from_slice(&file_kinds)
-            .map_err(|source| DbError::DeFileKinds { source })?;
-        Ok(SessionMeta { file_kinds })
-    }
-
-    fn query_row<T, P, F>(&self, sql: &str, params: P, f: F) -> DbResult<T>
-    where
-        P: rusqlite::Params,
-        F: FnOnce(&Row<'_>) -> rusqlite::Result<T>,
-    {
-        use rusqlite::Error::*;
-        self.db
-            .query_row(sql, params, f)
-            .map_err(|source| match source {
-                QueryReturnedNoRows => DbError::NotFound {
-                    source,
-                    sql: sql.to_owned(),
-                },
-                _ => DbError::QueryRowOther {
-                    source,
-                    sql: sql.to_owned(),
-                },
-            })
     }
 
     pub async fn get_session(self, session_id: &str) -> DbResult<(Self, SessionMeta)> {
@@ -563,7 +532,11 @@ impl Db {
                 .map_err(|source| DbError::SessionCounter { source, action: "upsert" } )?;
             let deleted = self.db
                 .execute(
-                    r#"DELETE FROM file WHERE file_id IN (SELECT file_id FROM file a INNER JOIN session_index b ON (b.session_id = a.session_or_saved_id) WHERE b.idx = ?)"#,
+                    r#"DELETE FROM file WHERE file_id IN (
+                            SELECT file_id FROM file a INNER JOIN session_index b ON (
+                                b.session_id = a.session_or_saved_id
+                            ) WHERE b.idx = ?
+                        )"#,
                     [next],
                 )
                 .map_err(|source| DbError::SessionCounter { source, action: "delete" } )?;

@@ -117,10 +117,13 @@ impl HttpError {
     }
 
     pub fn db_error(error: DbError) -> Self {
+        let message = error.to_string().cow();
+        let code = error.code().cow();
+        eprintln!("[HttpError::db_error]: {:?}", anyhow::Error::from(error));
         Self {
             title: "Database Error".cow(),
-            message: error.to_string().cow(),
-            code: error.code().cow(),
+            message,
+            code,
             status: StatusCode::INTERNAL_SERVER_ERROR,
             mime: None,
         }
