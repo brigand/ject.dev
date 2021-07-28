@@ -17,10 +17,25 @@ fn main() {
 }
 
 fn try_main() -> Result<(), DynError> {
-    let task = env::args().nth(1);
-    let arg1 = env::args().nth(2);
+    let mut args = env::args().skip(1);
+    let task = args.next();
+    let arg1 = args.next();
+
+    let mut only = false;
+    for arg in env::args().skip(1) {
+        if arg == "--only" {
+            only = true;
+        }
+    }
+
     match task.as_deref() {
         Some("dist") => dist()?,
+        Some("deploy") => {
+            if !only {
+                dist()?;
+            }
+            deploy(arg1.as_deref())?
+        }
         Some("provision") => provision(arg1.as_deref())?,
         _ => print_help(),
     }
@@ -35,6 +50,10 @@ provision [ssh_args]       sets up a server to be able to run ject.dev
     ssh_args: space-delimited list of initial ssh arguments
               defaults to \"ject-root\" (without quotes)
               define a ject-root host in ~/.ssh/config to have the default work
+deploy [ssh_args]          transfers cargo and webpack output to the server and restarts it
+    ssh_args: same as above, but defaults to \"ject\". Also currently assumes \"ject-root\" is valid,
+              which needs to be solved at some point.
+    --only: if passed, skip running dist first
 "
     )
 }
@@ -45,7 +64,114 @@ fn dist() -> Result<(), DynError> {
 
     docker_build_musl()?;
     dist_binary()?;
+    dist_webpack()?;
     dist_manpage()?;
+
+    Ok(())
+}
+
+fn dist_binary() -> Result<(), DynError> {
+    // let image = "ekidd/rust-musl-builder:nightly-2021-02-13";
+
+    // let status = Command::new("docker").args(&["pull", image]).status()?;
+    // if !status.success() {
+    //     Err("docker pull failed")?;
+    // }
+
+    let status = docker_run_builder(&[
+        "sudo",
+        "chown",
+        "-R",
+        "rust:rust",
+        "/home/rust/.cargo/git",
+        "/home/rust/.cargo/registry",
+    ])
+    .status()?;
+    if !status.success() {
+        Err("failed to set ownership of .cargo/git and .cargo/registry")?;
+    }
+    println!("Updated permissions");
+    let status = docker_run_builder(&["cargo", "build", "--release", "-p", "server"]).status()?;
+
+    if !status.success() {
+        Err("docker musl build failed")?;
+    }
+
+    let dst = project_root().join("target/x86_64-unknown-linux-musl/release/server");
+
+    fs::copy(&dst, dist_dir().join("ject-server"))?;
+
+    Ok(())
+}
+
+fn dist_manpage() -> Result<(), DynError> {
+    Ok(())
+}
+
+fn dist_webpack() -> Result<(), DynError> {
+    let status = Command::new("npm").args(&["run", "build"]).status().map_err(|err| format!("npm run build couldn't execute. Likely node/npm not being installed.\nSource: {:?}", err))?;
+
+    if !status.success() {
+        Err("npm run build returned a non-zero exit code")?;
+    }
+
+    Ok(())
+}
+
+fn deploy(ssh_args: Option<&str>) -> Result<(), DynError> {
+    let ssh_args = ssh_args.unwrap_or("ject");
+
+    {
+        let mut cmd = Command::new("rsync");
+        // TODO: support ssh_args like "user@host -i custom.pem"
+        cmd.arg("-Pe");
+        cmd.arg("ssh");
+        cmd.arg("target/dist/ject-server");
+        let dest = format!("{}:/home/ject/app/", ssh_args);
+        cmd.arg(&dest);
+        println!("Transferring ject-server with command: {:?}", cmd);
+        let status = cmd.status()?;
+        if !status.success() {
+            Err("Failed first rsync command")?;
+        }
+    }
+
+    {
+        let mut cmd = Command::new("rsync");
+        // TODO: support ssh_args like "user@host -i custom.pem"
+        cmd.arg("--delete");
+        cmd.arg("-aPe");
+        cmd.arg("ssh");
+        cmd.arg("dist/");
+        let dest = format!("{}:/home/ject/app/dist/", ssh_args);
+        cmd.arg(&dest);
+        println!("Transferring ject webpack output with command: {:?}", cmd);
+        let status = cmd.status()?;
+        if !status.success() {
+            Err("Failed second rsync command")?;
+        }
+    }
+
+    {
+        let mut cmd = Command::new("ssh");
+        cmd.arg("ject-root");
+        cmd.arg("bash");
+        cmd.arg("-c");
+        let bash_commands = vec![
+            "systemctl restart ject",
+            "echo 'Restarted. Waiting 3 seconds to read logs'",
+            "sleep 3",
+            "echo 'Last 50 logs:'",
+            "journalctl -u ject.service -n 50 --no-pager",
+            "echo 'SSH Done'",
+        ]
+        .join(" && ");
+        cmd.arg(&bash_commands);
+        let status = cmd.status()?;
+        if !status.success() {
+            Err("ssh command to ject-root failed")?;
+        }
+    }
 
     Ok(())
 }
@@ -61,15 +187,46 @@ fn provision(ssh_args: Option<&str>) -> Result<(), DynError> {
         r#"key="{}"; grep -F "$(printf '%s' "$key" | awk '{{print $2}}')" /home/ject/.ssh/authorized_keys || printf '%s\n' "$key" >> /home/ject/.ssh/authorized_keys"#,
         get_ssh_pub()?
     );
+
+    let write_systemd_file = bash_write_file(
+        "/etc/systemd/system/ject.service",
+        r#"[Service]
+User=ject
+Group=ject
+ExecStart=/home/ject/app/ject-server
+WorkingDirectory=/home/ject/app
+Environment=JECT_IS_PROD=1
+Environment=JECT_DOMAIN_MAIN=ject.dev
+Environment=JECT_DOMAIN_FRAME=ject.link
+
+# Tried combinations of those:
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+SecureBits=keep-caps
+"#,
+    );
+
     let bash_commands = vec![
+        // Create users
         "id -u ject >/dev/null 2>&1 || ( echo 'Creating group and user' ; groupadd ject ; useradd -g ject --home-dir /home/ject --shell /bin/bash ject )",
+
+        // Install nginx/certbot
+        "apt-get update",
+        "apt-get install -y nginx",
+        "snap install core",
+        "snap refresh core",
+        "snap install --classic certbot",
+        "ln -s /snap/bin/certbot /usr/bin/certbot",
+
+        // Setup ject user home dir
         "mkdir -p /home/ject/app/letsencrypt/{ssl,nonce}",
         "mkdir -p /home/ject/.ssh",
         "touch /home/ject/.ssh/authorized_keys",
         &write_authorized_key,
-        "chown ject -R /home/ject/{app,.ssh}",
+        "chown ject:ject -R /home/ject/{app,.ssh}",
         "chmod -R 600 /home/ject/app/letsencrypt/",
-        "echo 'End of bash commands!'",
+        &write_systemd_file,
+        "systemctl daemon-reload",
+        "echo 'All commands executed!'",
     ]
     .join(" && ");
     cmd.arg(&bash_commands);
@@ -82,6 +239,27 @@ fn provision(ssh_args: Option<&str>) -> Result<(), DynError> {
     }
 
     Ok(())
+}
+
+fn bash_write_file(file_name: &str, contents: &str) -> String {
+    let fmt = contents
+        .split('\n')
+        .map(|_| "%s")
+        .collect::<Vec<_>>()
+        .join("\n");
+    let mut cmd = format!("printf \"{}\" ", fmt);
+
+    for line in contents.split('\n') {
+        cmd.push_str("\'");
+        cmd.push_str(line);
+
+        cmd.push_str("\' ");
+    }
+
+    cmd.push_str(" > ");
+    cmd.push_str(file_name);
+
+    cmd
 }
 
 // static BUILDER_TAG: &str = "ject-musl-builder";
@@ -121,65 +299,6 @@ fn docker_run_builder(command_args: &[&str]) -> Command {
     let mut cmd = docker_command();
     cmd.args(args);
     cmd
-}
-
-fn dist_binary() -> Result<(), DynError> {
-    // let cargo = ;
-
-    // let image = "ekidd/rust-musl-builder:nightly-2021-02-13";
-
-    // let status = Command::new("docker").args(&["pull", image]).status()?;
-    // if !status.success() {
-    //     Err("docker pull failed")?;
-    // }
-
-    let status = docker_run_builder(&[
-        "sudo",
-        "chown",
-        "-R",
-        "rust:rust",
-        "/home/rust/.cargo/git",
-        "/home/rust/.cargo/registry",
-    ])
-    .status()?;
-    if !status.success() {
-        Err("failed to set ownership of .cargo/git and .cargo/registry")?;
-    }
-    println!("Updated permissions");
-    let status = docker_run_builder(&["cargo", "build", "--release", "-p", "server"]).status()?;
-
-    if !status.success() {
-        Err("docker musl build failed")?;
-    }
-
-    let dst = project_root().join("target/x86_64-unknown-linux-musl/release/server");
-
-    fs::copy(&dst, dist_dir().join("ject-server"))?;
-
-    // if Command::new("strip")
-    //     .arg("--version")
-    //     .stdout(Stdio::null())
-    //     .status()
-    //     .is_ok()
-    // {
-    //     eprintln!("stripping the binary");
-    //     let status = Command::new("strip").arg(&dst).status()?;
-    //     if !status.success() {
-    //         Err("strip failed")?;
-    //     }
-    // } else {
-    //     eprintln!("no `strip` utility found")
-    // }
-
-    Ok(())
-}
-
-fn dist_manpage() -> Result<(), DynError> {
-    // let page = Manual::new("hello-world")
-    //     .about("Greets the world")
-    //     .render();
-    // fs::write(dist_dir().join("hello-world.man"), &page.to_string())?;
-    Ok(())
 }
 
 fn project_root() -> PathBuf {
