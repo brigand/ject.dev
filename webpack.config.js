@@ -31,8 +31,8 @@ module.exports = defineConfig((env, argv) => ({
     new DefinePlugin({
       'process.env': {
         NODE_ENV: JSON.stringify(argv.mode || 'development'),
-        INJECT_DOMAIN_MAIN: JSON.stringify('ject.dev'),
-        INJECT_DOMAIN_FRAME: JSON.stringify('ject.link'),
+        JECT_DOMAIN_MAIN: JSON.stringify('ject.dev'),
+        JECT_DOMAIN_FRAME: JSON.stringify('ject.link'),
       },
     }),
   ],

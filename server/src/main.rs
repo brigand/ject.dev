@@ -9,15 +9,12 @@ mod parser;
 mod state;
 
 use actix_files as fs;
+
 use actix_web::{
     client::{self, SendRequestError},
     get,
-    // middleware::Logger,
-    App,
-    HttpRequest,
-    HttpResponse,
-    HttpServer,
-    Responder,
+    middleware::Logger,
+    App, HttpRequest, HttpResponse, HttpServer, Responder, Result,
 };
 use ov::*;
 
@@ -82,15 +79,20 @@ async fn main() -> anyhow::Result<()> {
     Db::open_env().await?.create_tables().await?;
     println!("Created tables");
 
-    let bind = "0.0.0.0:1950";
-    println!("Starting server on {}", bind);
+    // let domain_main = env::domain_main();
+    // let domain_frame = env::domain_frame();
 
-    HttpServer::new(move || {
-        // let logger = Logger::default().exclude("/dist/");
+    let bind = if env::is_production() {
+        "127.0.0.1:1950"
+    } else {
+        "0.0.0.0:1950"
+    };
+
+    let server = HttpServer::new(move || {
+        let logger = Logger::default().exclude("/dist/");
         App::new()
-            // .wrap(logger)
+            .wrap(logger)
             .service(r_index)
-            .service(r_dist)
             .over(|app| {
                 if env::is_production() {
                     app.service(fs::Files::new("/dist", "./dist"))
@@ -99,10 +101,10 @@ async fn main() -> anyhow::Result<()> {
                 }
             })
             .service(api::service())
-    })
-    .bind(bind)?
-    .run()
-    .await?;
+    });
+
+    println!("Starting server on {}", bind);
+    server.bind(bind)?.run().await?;
 
     Ok(())
 }

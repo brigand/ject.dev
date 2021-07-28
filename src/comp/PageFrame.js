@@ -77,7 +77,7 @@ function PageFrame(props) {
       width={frameSize.width}
       height={frameSize.height}
       src={url.toString()}
-      allow="allow-modals allow-forms allow-scripts allow-same-origin allow-popups allow-top-navigation-by-user-activation allow-downloads"
+      allow="allow-forms allow-scripts allow-same-origin allow-popups allow-top-navigation-by-user-activation allow-downloads"
       allowFullScreen
       frameBorder="0"
     />

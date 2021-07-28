@@ -10,10 +10,10 @@ import Console from './Console';
 import { EventType } from '../EventType';
 import { useAsync } from 'react-use';
 import * as api from '../api';
-let { INJECT_DOMAIN_MAIN, INJECT_DOMAIN_FRAME } = process.env;
-if (location.hostname === `${INJECT_DOMAIN_MAIN}.local`) {
-  INJECT_DOMAIN_MAIN += '.local';
-  INJECT_DOMAIN_FRAME += '.local';
+let { JECT_DOMAIN_MAIN, JECT_DOMAIN_FRAME } = process.env;
+if (location.hostname === `${JECT_DOMAIN_MAIN}.local`) {
+  JECT_DOMAIN_MAIN += '.local';
+  JECT_DOMAIN_FRAME += '.local';
 }
 
 function defaultFiles() {
@@ -225,7 +225,7 @@ function MainPage() {
             }}
           >
             <PageFrame
-              host={INJECT_DOMAIN_FRAME}
+              host={JECT_DOMAIN_FRAME}
               sessionId={createSession.value}
               resize={events.resize}
               consoleMessage={events.consoleMessage}

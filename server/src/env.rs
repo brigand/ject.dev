@@ -2,7 +2,27 @@ use anyhow::Result;
 use rusqlite::Connection;
 
 pub fn is_production() -> bool {
-    !std::env::var("JECT_PROD").unwrap_or_default().is_empty()
+    !std::env::var("JECT_IS_PROD").unwrap_or_default().is_empty()
+}
+
+pub fn domain_main() -> String {
+    if let Some(domain) = std::env::var("JECT_DOMAIN_MAIN").ok() {
+        domain
+    } else if is_production() {
+        "ject.dev".to_owned()
+    } else {
+        "ject.dev.local".to_owned()
+    }
+}
+
+pub fn domain_frame() -> String {
+    if let Some(domain) = std::env::var("JECT_DOMAIN_FRAME").ok() {
+        domain
+    } else if is_production() {
+        "ject.link".to_owned()
+    } else {
+        "ject.link.local".to_owned()
+    }
 }
 
 pub fn open_sqlite_env() -> Result<Connection, rusqlite::Error> {
