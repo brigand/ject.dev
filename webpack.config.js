@@ -2,6 +2,8 @@ const path = require('path');
 const { inspect } = require('util');
 const { DefinePlugin } = require('webpack');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
+const CopyPlugin = require('copy-webpack-plugin');
+const { CleanWebpackPlugin } = require('clean-webpack-plugin');
 
 module.exports = defineConfig((env, argv) => ({
   mode: argv.mode || 'development',
@@ -25,6 +27,10 @@ module.exports = defineConfig((env, argv) => ({
     allowedHosts: ['localhost', 'ject.dev.local', 'ject.link.local'],
   },
   plugins: [
+    new CleanWebpackPlugin(),
+    new CopyPlugin({
+      patterns: [{ from: 'public' }],
+    }),
     new HtmlWebpackPlugin({
       template: 'src/index.html',
     }),
