@@ -118,6 +118,44 @@ function MainPage() {
     });
   });
 
+  const centerRadialMenu = React.useMemo(
+    () => (
+      <RadialMenu>
+        <MenuItem
+          style={{ color: 'var(--green)' }}
+          onClick={() => events.save.emit()}
+        >
+          <span>Save</span>
+        </MenuItem>
+        <MenuItem
+          style={{ color: 'var(--purple)' }}
+          onClick={() => events.run.emit()}
+        >
+          <span>Run</span>
+        </MenuItem>
+        <MenuItem
+          style={{ color: 'var(--yellow)' }}
+          onClick={() => console.log('TODO: Open About Page')}
+        >
+          <span>About</span>
+        </MenuItem>
+        <MenuItem
+          style={{ color: 'var(--cyan)' }}
+          onClick={() => window.open('https://github.com/brigand/ject.dev')}
+        >
+          <span>Source</span>
+        </MenuItem>
+        <MenuItem
+          style={{ color: 'var(--blue)' }}
+          onClick={() => console.log('TODO: prompt to add dependency')}
+        >
+          <span>+ Dep</span>
+        </MenuItem>
+      </RadialMenu>
+    ),
+    [],
+  );
+
   if (!createSession.value) {
     return null;
   }
@@ -126,40 +164,7 @@ function MainPage() {
     <QuadSplit
       resize={events.resize}
       onSubmit={() => {}}
-      center={() => (
-        <RadialMenu>
-          <MenuItem
-            style={{ color: 'var(--green)' }}
-            onClick={() => events.save.emit()}
-          >
-            <span>Save</span>
-          </MenuItem>
-          <MenuItem
-            style={{ color: 'var(--purple)' }}
-            onClick={() => events.run.emit()}
-          >
-            <span>Run</span>
-          </MenuItem>
-          <MenuItem
-            style={{ color: 'var(--yellow)' }}
-            onClick={() => console.log('TODO: Open About Page')}
-          >
-            <span>About</span>
-          </MenuItem>
-          <MenuItem
-            style={{ color: 'var(--cyan)' }}
-            onClick={() => console.log('TODO: Open Github')}
-          >
-            <span>Source</span>
-          </MenuItem>
-          <MenuItem
-            style={{ color: 'var(--blue)' }}
-            onClick={() => console.log('TODO: prompt to add dependency')}
-          >
-            <span>+ Dep</span>
-          </MenuItem>
-        </RadialMenu>
-      )}
+      center={() => centerRadialMenu}
     >
       <>
         {/* {'value:' + createSession.value} */}
