@@ -16,13 +16,15 @@ use actix_web::{
     middleware::Logger,
     App, HttpRequest, HttpResponse, HttpServer, Responder, Result,
 };
+use env::is_production;
+use fs::NamedFile;
 use ov::*;
 
 use crate::db::Db;
 
 #[get("/")]
 async fn r_index() -> impl Responder {
-    let html = r#"<!DOCTYPE html>
+    let html = r##"<!DOCTYPE html>
 <html>
     <head>
         <meta charset="utf-8" />
@@ -32,16 +34,34 @@ async fn r_index() -> impl Responder {
             window.PUBLIC_PATH = '/dist/';
         </script>
 
+        <link rel="apple-touch-icon" sizes="180x180" href="/dist/apple-touch-icon.png">
+        <link rel="icon" type="image/png" sizes="32x32" href="/dist/favicon-32x32.png">
+        <link rel="icon" type="image/png" sizes="16x16" href="/dist/favicon-16x16.png">
+        <link rel="manifest" href="/dist/site.webmanifest">
+        <link rel="mask-icon" href="/dist/safari-pinned-tab.svg" color="#ffe66d">
+        <meta name="msapplication-TileColor" content="#ffe66d">
+        <meta name="theme-color" content="#ffe66d">
+
         <script defer src="/dist/app.bundle.js"></script>
     </head>
 
     <body>
         <div id="root"></div>
     </body>
-</html>"#;
+</html>"##;
     HttpResponse::Ok()
         .header("content-type", "text/html")
         .body(html)
+}
+
+#[get("/favicon.ico")]
+async fn r_favicon(_req: HttpRequest) -> Result<impl Responder, SendRequestError> {
+    let file = if is_production() {
+        NamedFile::open("dist/favicon.ico")?
+    } else {
+        NamedFile::open("public/favicon.ico")?
+    };
+    Ok(file)
 }
 
 #[get("/dist/{tail:.*}")]
@@ -93,6 +113,7 @@ async fn main() -> anyhow::Result<()> {
         App::new()
             .wrap(logger)
             .service(r_index)
+            .service(r_favicon)
             .over(|app| {
                 if env::is_production() {
                     app.service(fs::Files::new("/dist", "./dist"))
