@@ -8,7 +8,8 @@ import RadialMenu from './RadialMenu';
 import ResultsTabs from './ResultsTabs';
 import Console from './Console';
 import { EventType } from '../EventType';
-import { useAsync } from 'react-use';
+import { useAsync, useEvent } from 'react-use';
+import { queueMeasureRender } from '../async';
 import * as api from '../api';
 let { JECT_DOMAIN_MAIN, JECT_DOMAIN_FRAME } = process.env;
 if (location.hostname === `${JECT_DOMAIN_MAIN}.local`) {
@@ -117,6 +118,18 @@ function MainPage() {
       window.history.pushState({}, '', url);
     });
   });
+
+  const cleanupResize = React.useRef();
+  useEvent(
+    'resize',
+    () => {
+      cleanupResize.current?.();
+      cleanupResize.current = queueMeasureRender(
+        () => () => events.resize.emit(null),
+      );
+    },
+    window,
+  );
 
   const centerRadialMenu = React.useMemo(
     () => (
