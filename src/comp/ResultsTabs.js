@@ -49,7 +49,7 @@ function ResultsTabs(props) {
   );
 
   const tabs = [makeTab('frame', 'Page'), makeTab('console', 'Console')];
-  if (props.firstValue === 'console') {
+  if (props.firstChild === 'console') {
     tabs.reverse();
   }
 
@@ -65,7 +65,7 @@ function ResultsTabs(props) {
 
 ResultsTabs.propTypes = {
   value: pt.oneOf(['frame', 'console']).isRequired,
-  firstValue: pt.oneOf(['frame', 'console']).isRequired,
+  firstChild: pt.oneOf(['frame', 'console']).isRequired,
   onChange: pt.func.isRequired,
   children: pt.node.isRequired,
 };

@@ -74,7 +74,7 @@ function Group(props) {
 Group.propTypes = {
   index: pt.number.isRequired,
   pull: pt.instanceOf(EventType).isRequired,
-  queue: pt.instanceOf(EventType).isRequired,
+  queue: pt.instanceOf(Array).isRequired,
 };
 
 const GroupMemo = React.memo(Group);
