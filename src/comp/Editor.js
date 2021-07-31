@@ -1,6 +1,7 @@
 import React from 'react';
 
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.main.js';
+// import * as monaco from 'monaco-editor/esm/vs/editor/editor.main.js';
+import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import styled from '@emotion/styled';
 import pt from 'prop-types';
 import andromeda from '../theme/andromeda-monaco.json';
@@ -14,29 +15,8 @@ const Inner = styled.div`
   height: 100%;
 `;
 
-// let promise = null;
-// let monaco = null;
-
-const join = (a, b) => a.replace(/[/]$/, '') + '/' + b.replace(/^\.?\// < '');
-const pub = (path) => join(__webpack_public_path__, path);
-
-self.MonacoEnvironment = {
-  getWorkerUrl: function (moduleId, label) {
-    if (label === 'json') {
-      return pub('./json.worker.bundle.js');
-    }
-    if (label === 'css' || label === 'scss' || label === 'less') {
-      return pub('./css.worker.bundle.js');
-    }
-    if (label === 'html' || label === 'handlebars' || label === 'razor') {
-      return pub('./html.worker.bundle.js');
-    }
-    if (label === 'typescript' || label === 'javascript') {
-      return pub('./ts.worker.bundle.js');
-    }
-    return pub('./editor.worker.bundle.js');
-  },
-};
+// const join = (a, b) => a.replace(/[/]$/, '') + '/' + b.replace(/^\.?\// < '');
+// const pub = (path) => join(__webpack_public_path__, path);
 
 // https://github.com/microsoft/monaco-editor/issues/264#issuecomment-289911286
 monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
