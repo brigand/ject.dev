@@ -28,7 +28,7 @@ async fn r_index() -> impl Responder {
 <html>
     <head>
         <meta charset="utf-8" />
-        <title>Inject - brigand.me</title>
+        <title>ject.dev</title>
         <script>
             // Used by global-init.js
             window.PUBLIC_PATH = '/dist/';
