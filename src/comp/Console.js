@@ -125,7 +125,9 @@ function Console(props) {
   });
 
   useEffect(() => {
-    props.consoleMessage.emit({ method: 'ject_execute' });
+    if (props.submitCount > 1) {
+      props.consoleMessage.emit({ method: 'ject_execute' });
+    }
   }, [props.submitCount]);
 
   return (
