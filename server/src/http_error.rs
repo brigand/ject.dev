@@ -82,6 +82,16 @@ impl HttpError {
 }
 
 impl HttpError {
+    pub fn invalid_host(expected: &str) -> Self {
+        Self {
+            title: "Invalid Host".cow(),
+            message: format!("Expected the domain to be {}", expected).cow(),
+            code: "invalid_host".cow(),
+            status: StatusCode::UNPROCESSABLE_ENTITY,
+            mime: None,
+        }
+    }
+
     pub fn invalid_html(error: impl Display) -> Self {
         Self {
             title: "Invalid HTML Provided".cow(),

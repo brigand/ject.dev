@@ -2,6 +2,7 @@ mod api;
 mod cdn;
 mod db;
 mod env;
+mod http;
 mod http_error;
 mod ids;
 // mod js;

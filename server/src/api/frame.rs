@@ -1,5 +1,7 @@
 use crate::cdn::cdnjs_script;
 use crate::db::Db;
+use crate::env::domain_frame;
+use crate::http::Host;
 use crate::http_error::{ErrorMime, HttpError};
 use crate::parser::{parse_html, HtmlPart};
 use crate::state::FileKind;
@@ -82,8 +84,16 @@ pub async fn r_get_session_page_css(info: web::Path<String>) -> Result<HttpRespo
 }
 
 #[get("/session/{session_id}/page")]
-pub async fn r_get_session_page_html(info: web::Path<String>) -> Result<HttpResponse, HttpError> {
+pub async fn r_get_session_page_html(
+    info: web::Path<String>,
+    host: Host,
+) -> Result<HttpResponse, HttpError> {
     let err_mime = ErrorMime::Html;
+    let domain_frame = domain_frame();
+    if !host.matches(&domain_frame) {
+        return Err(HttpError::invalid_host(&domain_frame).with_mime(err_mime));
+    }
+
     let session_id = info.0;
     let db = Db::open_env()
         .await
