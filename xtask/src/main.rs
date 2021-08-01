@@ -1,3 +1,6 @@
+mod ssh;
+
+use ssh::CheckedSsh;
 use std::{
     env,
     ffi::OsString,
@@ -9,6 +12,8 @@ use std::{
 
 type DynError = Box<dyn std::error::Error>;
 
+// impl is later in this file
+
 fn main() {
     if let Err(e) = try_main() {
         eprintln!("{}", e);
@@ -17,9 +22,7 @@ fn main() {
 }
 
 fn try_main() -> Result<(), DynError> {
-    let mut args = env::args().skip(1);
-    let task = args.next();
-    let arg1 = args.next();
+    let task = env::args().skip(1).next();
 
     let mut only = false;
     for arg in env::args().skip(1) {
@@ -31,12 +34,13 @@ fn try_main() -> Result<(), DynError> {
     match task.as_deref() {
         Some("dist") => dist()?,
         Some("deploy") => {
+            let both = CheckedSsh::both()?;
             if !only {
                 dist()?;
             }
-            deploy(arg1.as_deref())?
+            deploy(both)?
         }
-        Some("provision") => provision(arg1.as_deref())?,
+        Some("provision") => provision()?,
         _ => print_help(),
     }
     Ok(())
@@ -46,13 +50,8 @@ fn print_help() {
     eprintln!(
         "Tasks:
 dist                       builds application to target/dist/ject-server
-provision [ssh_args]       sets up a server to be able to run ject.dev
-    ssh_args: space-delimited list of initial ssh arguments
-              defaults to \"ject-root\" (without quotes)
-              define a ject-root host in ~/.ssh/config to have the default work
-deploy [ssh_args]          transfers cargo and webpack output to the server and restarts it
-    ssh_args: same as above, but defaults to \"ject\". Also currently assumes \"ject-root\" is valid,
-              which needs to be solved at some point.
+provision                  sets up a server to be able to run ject.dev
+deploy                     transfers cargo and webpack output to the server and restarts it
     --only: if passed, skip running dist first
 "
     )
@@ -118,16 +117,11 @@ fn dist_webpack() -> Result<(), DynError> {
     Ok(())
 }
 
-fn deploy(ssh_args: Option<&str>) -> Result<(), DynError> {
-    let ssh_args = ssh_args.unwrap_or("ject");
-
+fn deploy(ssh: ssh::Both) -> Result<(), DynError> {
     {
-        let mut cmd = Command::new("rsync");
-        // TODO: support ssh_args like "user@host -i custom.pem"
-        cmd.arg("-Pe");
-        cmd.arg("ssh");
+        let (host, mut cmd) = ssh.user.to_rsync();
         cmd.arg("target/dist/ject-server");
-        let dest = format!("{}:/home/ject/app/", ssh_args);
+        let dest = format!("{}:/home/ject/app/", host);
         cmd.arg(&dest);
         println!("Transferring ject-server with command: {:?}", cmd);
         let status = cmd.status()?;
@@ -137,13 +131,12 @@ fn deploy(ssh_args: Option<&str>) -> Result<(), DynError> {
     }
 
     {
-        let mut cmd = Command::new("rsync");
+        let (host, mut cmd) = ssh.user.to_rsync();
         // TODO: support ssh_args like "user@host -i custom.pem"
         cmd.arg("--delete");
-        cmd.arg("-aPe");
-        cmd.arg("ssh");
+        cmd.arg("-a");
         cmd.arg("dist/");
-        let dest = format!("{}:/home/ject/app/dist/", ssh_args);
+        let dest = format!("{}:/home/ject/app/dist/", host);
         cmd.arg(&dest);
         println!("Transferring ject webpack output with command: {:?}", cmd);
         let status = cmd.status()?;
@@ -153,10 +146,8 @@ fn deploy(ssh_args: Option<&str>) -> Result<(), DynError> {
     }
 
     {
-        let mut cmd = Command::new("ssh");
-        cmd.arg("ject-root");
-        cmd.arg("bash");
-        cmd.arg("-c");
+        let mut cmd = ssh.root.to_command();
+
         let bash_commands = vec![
             "systemctl restart ject",
             "echo 'Restarted. Waiting 3 seconds to read logs'",
@@ -176,12 +167,9 @@ fn deploy(ssh_args: Option<&str>) -> Result<(), DynError> {
     Ok(())
 }
 
-fn provision(ssh_args: Option<&str>) -> Result<(), DynError> {
-    let ssh_args = ssh_args.unwrap_or("ject-root");
-    let mut cmd = Command::new("ssh");
-    cmd.args(ssh_args.split_whitespace());
-    // cmd.arg("bash");
-    // cmd.arg("-c");
+fn provision() -> Result<(), DynError> {
+    let root_ssh = CheckedSsh::root()?;
+    let mut cmd = root_ssh.to_command();
 
     let write_authorized_key = format!(
         r#"key="{}"; grep -F "$(printf '%s' "$key" | awk '{{print $2}}')" /home/ject/.ssh/authorized_keys || printf '%s\n' "$key" >> /home/ject/.ssh/authorized_keys"#,
