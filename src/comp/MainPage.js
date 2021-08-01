@@ -33,16 +33,21 @@ function defaultFiles() {
     <meta charset="utf-8" />
     <link rel="stylesheet" href="inject!(editors.css.raw)" />
 
-    inject!(console)
-    <!-- inject!(deps.react) -->
+    inject!(console)${
+      // <!-- inject!(deps.react) -->
+      ''
+    }
     <!-- inject!(deps.jquery) -->
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+
+    </div>
+
     <script src="inject!(editors.js.raw)"></script>
     <!-- <script type="module" src="inject!(editors.js.raw)"></script> -->
-    </body>
+  </body>
 </html>
 `,
     },
@@ -249,7 +254,10 @@ function MainPage() {
               consoleMessage={events.consoleMessage}
               key={submitCount}
             />
-            <Console consoleMessage={events.consoleMessage} />
+            <Console
+              consoleMessage={events.consoleMessage}
+              submitCount={submitCount}
+            />
           </ResultsTabs>
         ) : (
           'Unexpected state. Report a bug.'

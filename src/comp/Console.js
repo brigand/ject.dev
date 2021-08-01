@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import pt from 'prop-types';
 import styled from '@emotion/styled';
 import { EventType } from '../EventType';
@@ -7,6 +7,11 @@ import { range } from '../utils/array';
 const PER_GROUP = 10;
 
 const LogLine = styled.pre`
+  white-space: pre-wrap;
+  max-width: 95%;
+  padding-left: 0.4em;
+  padding-right: 0.5em;
+  line-height: 1.5;
   color: ${(props) =>
     props.method === 'error'
       ? 'var(--red)'
@@ -15,10 +20,23 @@ const LogLine = styled.pre`
       : props.method === 'info'
       ? 'var(--blue)'
       : 'var(--ij-fg)'};
+
+  &::before {
+    content: '❯ ';
+    display: inline-block;
+
+    opacity: 0.5;
+  }
+`;
+
+const ExecuteLine = styled.hr`
+  border-color: rgba(255, 255, 255, 0.46);
 `;
 
 function Item({ item }) {
-  return (
+  return item.method === 'ject_execute' ? (
+    <ExecuteLine />
+  ) : (
     <LogLine method={item.method}>
       <code>{item.args.join(' ')}</code>
     </LogLine>
@@ -87,6 +105,14 @@ function Console(props) {
   const total = React.useRef(0);
 
   props.consoleMessage.use((event) => {
+    if (
+      event?.method === 'info' &&
+      event.args.length === 1 &&
+      event.args[0] === '[WDS] Live Reloading enabled.'
+    ) {
+      return;
+    }
+
     total.current += 1;
     queue.push(event);
     if (!rAF.current) {
@@ -97,6 +123,10 @@ function Console(props) {
       });
     }
   });
+
+  useEffect(() => {
+    props.consoleMessage.emit({ method: 'ject_execute' });
+  }, [props.submitCount]);
 
   return (
     <div style={{ overflow: 'auto' }}>
@@ -109,6 +139,7 @@ function Console(props) {
 
 Console.propTypes = {
   consoleMessage: pt.instanceOf(EventType).isRequired,
+  submitCount: pt.number.isRequired,
 };
 
 export default Console;
