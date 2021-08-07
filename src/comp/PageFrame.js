@@ -67,12 +67,19 @@ function PageFrame(props) {
   props.resize.use(updateSize);
   React.useLayoutEffect(updateSize, [win.width, win.height]);
 
+  const first = React.useRef(true);
+  if (first.current) {
+    first.current = false;
+    props.consoleMessage.emit({ method: 'ject_execute', args: [] });
+  }
+
   if (!frameSize) {
     return <div ref={ref} />;
   }
 
   return (
     <iframe
+      data-tab={props['data-tab']}
       ref={ref}
       width={frameSize.width}
       height={frameSize.height}
@@ -89,6 +96,7 @@ PageFrame.propTypes = {
   sessionId: pt.string.isRequired,
   host: pt.string.isRequired,
   consoleMessage: pt.instanceOf(EventType).isRequired,
+  'data-tab': pt.string,
 };
 
 export default PageFrame;

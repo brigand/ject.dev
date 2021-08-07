@@ -124,14 +124,8 @@ function Console(props) {
     }
   });
 
-  useEffect(() => {
-    if (props.submitCount > 1) {
-      props.consoleMessage.emit({ method: 'ject_execute' });
-    }
-  }, [props.submitCount]);
-
   return (
-    <div style={{ overflow: 'auto' }}>
+    <div style={{ overflow: 'auto' }} data-tab={props['data-tab']}>
       {range(0, groups).map((i) => (
         <GroupMemo key={i} index={i} queue={queue} pull={pull} />
       ))}
@@ -142,6 +136,7 @@ function Console(props) {
 Console.propTypes = {
   consoleMessage: pt.instanceOf(EventType).isRequired,
   submitCount: pt.number.isRequired,
+  'data-tab': pt.string,
 };
 
 export default Console;

@@ -253,10 +253,12 @@ function MainPage() {
               resize={events.resize}
               consoleMessage={events.consoleMessage}
               key={submitCount}
+              data-tab="0"
             />
             <Console
               consoleMessage={events.consoleMessage}
               submitCount={submitCount}
+              data-tab="1"
             />
           </ResultsTabs>
         ) : (

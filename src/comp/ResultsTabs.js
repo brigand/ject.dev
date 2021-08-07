@@ -25,8 +25,8 @@ const Content = styled(Col)`
   & > * {
     height: 100%;
   }
-  & > :not(:nth-child(${(props) => props.active + 1})) {
-    color: red;
+
+  & > [data-tab='${(props) => (props.active === 0 ? '1' : '0')}'] {
     display: none;
   }
 `;
