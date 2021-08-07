@@ -38,3 +38,7 @@ normalMethods.forEach((method) => {
     original(...args);
   };
 });
+
+window.addEventListener('error', (event) => {
+  console.error(event.error);
+});
