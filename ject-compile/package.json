@@ -1,0 +1,17 @@
+{
+  "name": "ject-compile",
+  "version": "0.0.0",
+  "description": "compiler service for ject.dev",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest"
+  },
+  "author": "Frankie Bagnardi <f.bagnardi@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "@babel/core": "^7.15.0",
+    "@babel/preset-react": "^7.14.5",
+    "express": "^4.17.1",
+    "express-promise-router": "^4.1.0"
+  }
+}

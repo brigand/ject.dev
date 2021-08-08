@@ -1,0 +1,7 @@
+#!/bin/sh
+
+echo "Smoke screen test start. Ensure ject-compile is running or else this will fail."
+set -x
+curl http://localhost:1951/health
+curl http://localhost:1951/api/babel -H 'content-type: text/plain' --data-binary 'let x = <div />' --compressed
+
