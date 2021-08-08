@@ -1,6 +1,10 @@
-use crate::db::{self, Db};
-use crate::ids;
-use crate::state::{FileKind, Session, SessionMeta};
+use crate::{
+    db::{
+        Db, {self},
+    },
+    ids,
+    state::{FileKind, Session, SessionMeta},
+};
 use actix_web::{post, put, web, HttpResponse};
 use db::DbError;
 use serde::Deserialize;

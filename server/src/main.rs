@@ -12,7 +12,9 @@ mod state;
 use actix_files as fs;
 
 use actix_web::{
-    client::{self, SendRequestError},
+    client::{
+        SendRequestError, {self},
+    },
     get,
     middleware::Logger,
     App, HttpRequest, HttpResponse, HttpServer, Responder, Result,

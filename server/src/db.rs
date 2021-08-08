@@ -20,7 +20,7 @@ pub enum DbError {
         sql: String,
     },
 
-    #[error("Attempted to query one row but it returnd an unexpected error")]
+    #[error("Attempted to query one row but it returned an unexpected error")]
     QueryRowOther {
         source: rusqlite::Error,
         sql: String,

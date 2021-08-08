@@ -1,5 +1,7 @@
-use crate::db::{Db, DbResult};
-use crate::state::Session;
+use crate::{
+    db::{Db, DbResult},
+    state::Session,
+};
 
 /// Store the session/saved files in sqlite.
 pub async fn put_files(mut db: Db, session_id: &str, session: &Session) -> DbResult<Db> {

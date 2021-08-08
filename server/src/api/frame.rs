@@ -1,10 +1,12 @@
-use crate::cdn::cdnjs_script;
-use crate::db::Db;
-use crate::env::domain_frame;
-use crate::http::Host;
-use crate::http_error::{ErrorMime, HttpError};
-use crate::parser::{parse_html, HtmlPart};
-use crate::state::FileKind;
+use crate::{
+    cdn::cdnjs_script,
+    db::Db,
+    env::domain_frame,
+    http::Host,
+    http_error::{ErrorMime, HttpError},
+    parser::{parse_html, HtmlPart},
+    state::FileKind,
+};
 use actix_web::{get, web, HttpResponse};
 
 async fn try_get_file(
