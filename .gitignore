@@ -5,3 +5,4 @@ node_modules
 .vscode
 ij_data_dir
 *.db3
+.DS_Store
