@@ -187,9 +187,8 @@ Environment=JECT_IS_PROD=1
 Environment=JECT_DOMAIN_MAIN=ject.dev
 Environment=JECT_DOMAIN_FRAME=ject.link
 
-# Tried combinations of those:
-AmbientCapabilities=CAP_NET_BIND_SERVICE
-SecureBits=keep-caps
+## AmbientCapabilities=CAP_NET_BIND_SERVICE
+## SecureBits=keep-caps
 "#,
     );
 
