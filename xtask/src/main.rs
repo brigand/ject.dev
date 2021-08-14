@@ -4,7 +4,7 @@ use ssh::CheckedSsh;
 use std::{
     env,
     ffi::OsString,
-    fs::{self, File},
+    fs,
     os::unix::prelude::OsStringExt,
     path::{Path, PathBuf},
     process::Command,
@@ -41,6 +41,14 @@ fn try_main() -> Result<(), DynError> {
             deploy(both)?
         }
         Some("provision") => provision()?,
+        Some("compiler:build") => build_compile()?,
+        Some("compiler:publish") => publish_compile()?,
+        Some("compiler:deploy") => deploy_compile()?,
+        Some("compiler") => {
+            build_compile()?;
+            publish_compile()?;
+            deploy_compile()?;
+        }
         _ => print_help(),
     }
     Ok(())
@@ -50,6 +58,10 @@ fn print_help() {
     eprintln!(
         "Tasks:
 dist                       builds application to target/dist/ject-server
+compiler:build             builds the ject-compile container
+compiler:publish           publish the latest ject-compile container to docker hub
+compiler:deploy            pull the latest image on the server and restart it
+compiler                   all three compile subcommands in order
 provision                  sets up a server to be able to run ject.dev
 deploy                     transfers cargo and webpack output to the server and restarts it
     --only: if passed, skip running dist first
@@ -117,6 +129,51 @@ fn dist_webpack() -> Result<(), DynError> {
     Ok(())
 }
 
+fn build_compile() -> Result<(), DynError> {
+    let dir = ject_compile_dir();
+    let status = docker_command()
+        .current_dir(dir)
+        .args(&["build", "-t", "brigand/ject-compile", "."])
+        .status()?;
+    if !status.success() {
+        Err("Expected docker build for ject-compile to be successful")?;
+    }
+
+    Ok(())
+}
+
+fn publish_compile() -> Result<(), DynError> {
+    let dir = ject_compile_dir();
+    let status = docker_command()
+        .current_dir(dir)
+        .args(&["push", "brigand/ject-compile:latest"])
+        .status()?;
+    if !status.success() {
+        Err("Expected docker push for ject-compile to be successful")?;
+    }
+
+    Ok(())
+}
+
+fn deploy_compile() -> Result<(), DynError> {
+    let ssh = CheckedSsh::root()?;
+    let mut cmd = ssh.to_command();
+
+    let bash_commands = vec![
+        "docker pull brigand/ject-compile:latest",
+        "systemctl restart ject-compile",
+        "journalctl -u ject-compile.service -n 50 --no-pager",
+    ]
+    .join(" && ");
+    cmd.arg(&bash_commands);
+    let status = cmd.status()?;
+    if !status.success() {
+        Err("ssh command to ject-root to deploy ject-compile failed")?;
+    }
+
+    Ok(())
+}
+
 fn deploy(ssh: ssh::Both) -> Result<(), DynError> {
     {
         let (host, mut cmd) = ssh.user.to_rsync();
@@ -176,7 +233,7 @@ fn provision() -> Result<(), DynError> {
         get_ssh_pub()?
     );
 
-    let write_systemd_file = bash_write_file(
+    let write_ject_systemd_file = bash_write_file(
         "/etc/systemd/system/ject.service",
         r#"[Service]
 User=ject
@@ -189,6 +246,27 @@ Environment=JECT_DOMAIN_FRAME=ject.link
 
 ## AmbientCapabilities=CAP_NET_BIND_SERVICE
 ## SecureBits=keep-caps
+"#,
+    );
+
+    // Ref: https://blog.container-solutions.com/running-docker-containers-with-systemd
+    let write_ject_compile_systemd = bash_write_file(
+        "/etc/systemd/system/docker.ject-compile.service",
+        r#"[Unit]
+Description=ject-compile
+After=docker.service
+Requires=docker.service
+
+[Service]
+TimeoutStartSec=0
+Restart=always
+ExecStartPre=-/usr/bin/docker stop %n
+ExecStartPre=-/usr/bin/docker rm %n
+ExecStartPre=/usr/bin/docker pull brigand/ject-compile
+ExecStart=/usr/bin/docker run --rm --name %n brigand/ject-compile
+
+[Install]
+WantedBy=multi-user.target
 "#,
     );
 
@@ -211,7 +289,8 @@ Environment=JECT_DOMAIN_FRAME=ject.link
         &write_authorized_key,
         "chown ject:ject -R /home/ject/{app,.ssh}",
         "chmod -R 600 /home/ject/app/letsencrypt/",
-        &write_systemd_file,
+        &write_ject_systemd_file,
+        &write_ject_compile_systemd,
         "systemctl daemon-reload",
         "echo 'All commands executed!'",
     ]
@@ -306,6 +385,10 @@ fn dist_dir() -> PathBuf {
 
 fn musl_dir() -> PathBuf {
     project_relative("musl")
+}
+
+fn ject_compile_dir() -> PathBuf {
+    project_relative("ject-compile")
 }
 
 // fn cargo_command() -> Command {
