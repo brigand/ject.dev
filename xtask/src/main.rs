@@ -161,8 +161,8 @@ fn deploy_compile() -> Result<(), DynError> {
 
     let bash_commands = vec![
         "docker pull brigand/ject-compile:latest",
-        "systemctl restart ject-compile",
-        "journalctl -u ject-compile.service -n 50 --no-pager",
+        "systemctl restart docker.ject-compile",
+        "journalctl -u docker.ject-compile.service -n 50 --no-pager",
     ]
     .join(" && ");
     cmd.arg(&bash_commands);
@@ -263,7 +263,7 @@ Restart=always
 ExecStartPre=-/usr/bin/docker stop %n
 ExecStartPre=-/usr/bin/docker rm %n
 ExecStartPre=/usr/bin/docker pull brigand/ject-compile
-ExecStart=/usr/bin/docker run --rm --name %n brigand/ject-compile
+ExecStart=/usr/bin/docker run --rm --name %n -p 127.0.0.1:1951:1951 brigand/ject-compile
 
 [Install]
 WantedBy=multi-user.target
@@ -291,6 +291,8 @@ WantedBy=multi-user.target
         "chmod -R 600 /home/ject/app/letsencrypt/",
         &write_ject_systemd_file,
         &write_ject_compile_systemd,
+        "systemctl enable docker.ject-compile",
+        "systemctl start docker.ject-compile",
         "systemctl daemon-reload",
         "echo 'All commands executed!'",
     ]
@@ -383,9 +385,9 @@ fn dist_dir() -> PathBuf {
     project_relative("target/dist")
 }
 
-fn musl_dir() -> PathBuf {
-    project_relative("musl")
-}
+// fn musl_dir() -> PathBuf {
+//     project_relative("musl")
+// }
 
 fn ject_compile_dir() -> PathBuf {
     project_relative("ject-compile")
