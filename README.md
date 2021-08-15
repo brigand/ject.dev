@@ -36,6 +36,13 @@ $ cargo watch -c -w server/ -x run
 $ RUST_BACKTRACE=1 cargo watch -c -w server/ -x test
 ```
 
+In a third terminal, build and start the compile service (requires docker to be
+running).
+
+````sh
+$ cargo xtask compiler:build
+$ cargo xtask compiler:run
+
 Then open your browser to http://ject.dev.local:1950/
 
 <kbd>ctrl-c</kbd> and `cargo run` after updating a `.rs` file
@@ -65,6 +72,6 @@ location / {
   proxy_set_header X-Real-IP $remote_addr;
   proxy_pass http://localhost:1950;
 }
-```
+````
 
 Then notify nginx of the changed config with `systemctl reload nginx`.
