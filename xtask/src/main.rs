@@ -41,6 +41,7 @@ fn try_main() -> Result<(), DynError> {
             deploy(both)?
         }
         Some("provision") => provision()?,
+        Some("compiler:run") => run_compile()?,
         Some("compiler:build") => build_compile()?,
         Some("compiler:publish") => publish_compile()?,
         Some("compiler:deploy") => deploy_compile()?,
@@ -58,6 +59,7 @@ fn print_help() {
     eprintln!(
         "Tasks:
 dist                       builds application to target/dist/ject-server
+compiler:run               runs the compiler service on :1951
 compiler:build             builds the ject-compile container
 compiler:publish           publish the latest ject-compile container to docker hub
 compiler:deploy            pull the latest image on the server and restart it
@@ -124,6 +126,26 @@ fn dist_webpack() -> Result<(), DynError> {
 
     if !status.success() {
         Err("npm run build returned a non-zero exit code")?;
+    }
+
+    Ok(())
+}
+
+fn run_compile() -> Result<(), DynError> {
+    let dir = ject_compile_dir();
+    let status = docker_command()
+        .current_dir(dir)
+        .args(&[
+            "run",
+            // "-it",
+            "--rm",
+            "-p",
+            "1951:1951",
+            "brigand/ject-compile",
+        ])
+        .status()?;
+    if !status.success() {
+        Err("Expected docker build for ject-compile to be successful")?;
     }
 
     Ok(())
