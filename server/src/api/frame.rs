@@ -37,6 +37,24 @@ pub async fn r_get_session_page_js(info: web::Path<String>) -> Result<HttpRespon
     let session_id = info.0;
     let (_, code) = try_get_file(db, &session_id, err_mime, FileKind::JavaScript).await?;
 
+    let code = match crate::compile_service::babel_compile(&code).await {
+        Ok(code) => code,
+        Err(crate::compile_service::CompileError::Compile { err_id, message }) => {
+            if &err_id == "ject_compile::babel::compiler_error" {
+                return Err(HttpError::js_compile_fail(message).with_mime(err_mime));
+            } else {
+                let message = format!(
+                    "Unknown compiler err_id of {}.\nMessage: {}",
+                    err_id, message
+                );
+                return Err(HttpError::js_compile_fail(message).with_mime(err_mime));
+            }
+        }
+        Err(err) => {
+            return Err(HttpError::js_compile_fail(err).with_mime(err_mime));
+        }
+    };
+
     Ok(HttpResponse::Ok()
         .header("content-type", "application/javascript; charset=utf-8")
         .body(code))

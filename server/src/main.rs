@@ -1,5 +1,6 @@
 mod api;
 mod cdn;
+mod compile_service;
 mod db;
 mod env;
 mod http;
