@@ -65,7 +65,7 @@ apiRouter.use((err, req, res, next) => {
   });
 });
 
-app
+const server = app
   .listen(PORT, () => {
     console.log(`[ject-compile] Listening on port ${PORT}`);
   })
@@ -73,3 +73,23 @@ app
     console.error(`[ject-compile] Failed to listen on port ${PORT}`, err);
     process.exit(1);
   });
+
+// Ref: https://medium.com/@becintec/building-graceful-node-applications-in-docker-4d2cd4d5d392
+const signals = {
+  SIGHUP: 1,
+  SIGINT: 2,
+  SIGTERM: 15,
+};
+const shutdown = (signal, value) => {
+  console.log('shutdown!');
+  server.close(() => {
+    console.log(`server stopped by ${signal} with value ${value}`);
+    process.exit(128 + value);
+  });
+};
+Object.keys(signals).forEach((signal) => {
+  process.on(signal, () => {
+    console.log(`process received a ${signal} signal`);
+    shutdown(signal, signals[signal]);
+  });
+});
