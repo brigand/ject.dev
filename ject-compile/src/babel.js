@@ -1,6 +1,6 @@
 const babel = require('@babel/core');
 
-const makeOptions = ({ react = true }) => {
+const makeOptions = ({ react = true, typescript = true }) => {
   return {
     filename: 'page.js',
     babelrc: false,
@@ -12,6 +12,10 @@ const makeOptions = ({ react = true }) => {
           development: true,
           useSpread: true,
         },
+      ],
+      typescript && [
+        '@babel/preset-typescript',
+        { isTSX: true, allExtensions: true, onlyRemoveTypeImports: true },
       ],
     ].filter(Boolean),
   };
