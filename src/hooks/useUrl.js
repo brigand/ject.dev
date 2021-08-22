@@ -17,7 +17,7 @@ export class UrlWrapper {
 
   withPath(pathname) {
     const location = { ...this.#location, pathname };
-    new UrlWrapper(location, this.#history);
+    return new UrlWrapper(location, this.#history);
   }
 
   withQuery(k, v) {
@@ -48,12 +48,12 @@ export class UrlWrapper {
   }
 
   applyByPush() {
-    this.history.push(this.buildLocation());
+    this.#history.push(this.buildLocation());
     return this;
   }
 
   applyByReplace() {
-    this.history.replace(this.buildLocation());
+    this.#history.replace(this.buildLocation());
     return this;
   }
 }
