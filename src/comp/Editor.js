@@ -150,7 +150,7 @@ function Editor(props) {
         id: 'ject-format',
 
         // A label of the action that will be presented to the user.
-        label: 'Format (prettier)',
+        label: 'Format (Prettier)',
 
         // An optional array of keybindings for the action.
         keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_D],
