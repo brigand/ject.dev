@@ -7,8 +7,8 @@ const MenuBox = styled.div`
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 20em;
-  height: 20em;
+  width: ${(props) => props.size};
+  height: ${(props) => props.size};
   transform: translate(-50%, -50%);
 
   animation: radial-menu-scale-in 0.3s normal forwards ease-in-out;
@@ -28,15 +28,16 @@ const Menu = styled.svg`
   height: 100%;
 `;
 
-const toAbsolute = (coord, scale = 0.6) => coord * scale + 1;
+const toAbsolute = (coord, scale, multiplier) =>
+  (coord * scale + 1) * (multiplier * 10);
 
 const Label = styled.div`
   position: absolute;
   display: flex;
   width: 7em;
   height: 7em;
-  top: ${(props) => toAbsolute(props.y) * 10 + 'em'};
-  left: ${(props) => toAbsolute(props.x) * 10 + 'em'};
+  top: ${(props) => toAbsolute(props.y, props.scale, props.multiplier) + 'em'};
+  left: ${(props) => toAbsolute(props.x, props.scale, props.multiplier) + 'em'};
   transform: translate(-50%, -50%);
 
   justify-content: center;
@@ -111,13 +112,7 @@ const Arc = styled.path`
   }
 `;
 
-function RadialMenu(props) {
-  const status = React.useRef(null);
-  const [open, setOpen] = React.useState(false);
-
-  const children = React.Children.toArray(props.children).filter(Boolean);
-  const svgSize = 512;
-
+function getItems(children, innerRadius, outerRadius, isOuter) {
   const tao = Math.PI * 2;
   const sliceAngle = tao / children.length;
   // Defined such that the first item will be centered
@@ -130,8 +125,8 @@ function RadialMenu(props) {
     const x = Math.cos(centerAngle - Math.PI / 2);
     const y = Math.sin(centerAngle - Math.PI / 2);
     const arcPath = arc()({
-      innerRadius: Math.floor(svgSize / 8),
-      outerRadius: Math.floor(svgSize / 2),
+      innerRadius,
+      outerRadius,
       startAngle,
       endAngle,
     });
@@ -142,13 +137,44 @@ function RadialMenu(props) {
       arcPath,
       element,
       color: `hsl(${(180 / Math.PI) * startAngle}deg, 100%, 50%)`,
+      isOuter,
     };
   });
+
+  return items;
+}
+
+function RadialMenu(props) {
+  const status = React.useRef(null);
+  const [open, setOpen] = React.useState(false);
+  const [secondary, setSecondary] = React.useState(null);
+
+  const children = React.Children.toArray(props.children).filter(Boolean);
+
+  const multiplier = secondary ? 2 : 1;
+  const svgSize = 512 * multiplier;
+  const inner = getItems(
+    children,
+    Math.floor(svgSize / 8 / multiplier),
+    Math.floor(svgSize / 2 / multiplier),
+    false,
+  );
+
+  const outer = secondary
+    ? getItems(
+        secondary,
+        Math.floor(svgSize / 1.9 / multiplier),
+        Math.floor(svgSize / 1.1 / multiplier),
+        true,
+      )
+    : [];
+
+  const items = inner.concat(outer);
 
   return (
     <>
       {open && (
-        <MenuBox>
+        <MenuBox size={`${multiplier * 20}em`}>
           <Menu viewBox={`0 0 ${svgSize} ${svgSize}`}>
             <g transform={`translate(${svgSize / 2}, ${svgSize / 2})`}>
               {items.map((c, i) => (
@@ -167,16 +193,27 @@ function RadialMenu(props) {
                   onMouseUp={() => {
                     if (status.current === `menu-${i}`) {
                       status.current = null;
-                      children[i].props?.onClick();
-                      setOpen(false);
+                      children[i].props?.onClick?.();
+                      if (children[i].props.secondary) {
+                        setSecondary(children[i].props.secondary);
+                      } else {
+                        setOpen(false);
+                      }
                     }
                   }}
                 />
               ))}
             </g>
           </Menu>
+
           {items.map((c, i) => (
-            <Label key={i} x={c.x} y={c.y}>
+            <Label
+              key={i}
+              x={c.x}
+              y={c.y}
+              scale={(c.isOuter ? 1.4 : 0.6) / multiplier}
+              multiplier={multiplier}
+            >
               {c.element}
             </Label>
           ))}
