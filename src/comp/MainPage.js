@@ -11,6 +11,8 @@ import { EventType } from '../EventType';
 import { useAsync, useEvent } from 'react-use';
 import { queueMeasureRender } from '../async';
 import * as api from '../api';
+import useUrl from '../hooks/useUrl';
+
 let { JECT_DOMAIN_MAIN, JECT_DOMAIN_FRAME } = process.env;
 if (location.hostname === `${JECT_DOMAIN_MAIN}.local`) {
   JECT_DOMAIN_MAIN += '.local';
@@ -22,7 +24,7 @@ function defaultFiles() {
     {
       kind: 'JavaScript',
       version: 1,
-      contents: ``,
+      contents: `// JavaScript\n`,
     },
     {
       kind: 'Html',
@@ -33,10 +35,8 @@ function defaultFiles() {
     <meta charset="utf-8" />
     <link rel="stylesheet" href="inject!(editors.css.raw)" />
 
-    inject!(console)${
-      // <!-- inject!(deps.react) -->
-      ''
-    }
+    inject!(console)
+    <!-- inject!(deps.react) -->
     <!-- inject!(deps.jquery) -->
   </head>
 
@@ -45,6 +45,7 @@ function defaultFiles() {
 
     </div>
 
+    <!-- Note: Remove ".raw" to enable JSX support -->
     <script src="inject!(editors.js.raw)"></script>
     <!-- <script type="module" src="inject!(editors.js.raw)"></script> -->
   </body>
@@ -67,11 +68,8 @@ const MenuItem = styled.div`
   font-size: 1.3em;
 `;
 
-const initialSearchParams = new URL(window.location).searchParams;
-const initialSaveId = initialSearchParams.get('saved') || null;
-const initialResultsTab = initialSearchParams.get('rtab') || null;
-
 function MainPage() {
+  const url = useUrl();
   const [events] = React.useState(() => ({
     resize: new EventType(),
     save: new EventType(),
@@ -79,19 +77,18 @@ function MainPage() {
     consoleMessage: new EventType(),
   }));
   const session = React.useRef({ files: defaultFiles() });
-  const [rtab, setRtab] = React.useState(
-    initialResultsTab === 'console' ? 'console' : 'frame',
-  );
+  const rtab = url.query('rtab') === 'console' ? 'console' : 'frame';
+  const urlSaveId = url.query('saved');
   const [submitCount, setSubmitCount] = React.useState(1);
 
   const loadSave = useAsync(async () => {
-    if (!initialSaveId) return null;
-    const initial = await api.getSaved(initialSaveId);
+    if (!urlSaveId) return null;
+    const initial = await api.getSaved(urlSaveId);
     return initial;
   }, []);
 
   const createSession = useAsync(async () => {
-    if (initialSaveId) {
+    if (urlSaveId) {
       if (loadSave.value) {
         const version =
           Math.max(...session.current.files.map((file) => file.version || 1)) + 1;
@@ -118,9 +115,7 @@ function MainPage() {
   events.save.use(() => {
     console.log('Saving');
     api.save(session.current).then(({ save_id }) => {
-      const url = new URL(window.location);
-      url.searchParams.set('saved', save_id);
-      window.history.pushState({}, '', url);
+      url.withQuery('saved', save_id).applyByPush();
     });
   });
 
@@ -241,10 +236,7 @@ function MainPage() {
             value={rtab}
             firstChild="frame"
             onChange={(value) => {
-              const url = new URL(window.location);
-              url.searchParams.set('rtab', value);
-              window.history.replaceState(null, '', url);
-              setRtab(value);
+              url.withQuery('rtab', value).applyByReplace();
             }}
           >
             <PageFrame
