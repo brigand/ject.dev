@@ -11,57 +11,13 @@ import { EventType } from '../EventType';
 import { useAsync, useEvent } from 'react-use';
 import { queueMeasureRender } from '../async';
 import * as api from '../api';
+import * as templates from '../templates';
 import useUrl from '../hooks/useUrl';
 
 let { JECT_DOMAIN_MAIN, JECT_DOMAIN_FRAME } = process.env;
 if (location.hostname === `${JECT_DOMAIN_MAIN}.local`) {
   JECT_DOMAIN_MAIN += '.local';
   JECT_DOMAIN_FRAME += '.local';
-}
-
-function defaultFiles() {
-  return [
-    {
-      kind: 'JavaScript',
-      version: 1,
-      contents: `// JavaScript\n`,
-    },
-    {
-      kind: 'Html',
-      version: 1,
-      contents: `<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <link rel="stylesheet" href="inject!(editors.css.raw)" />
-
-    inject!(console)
-    <!-- inject!(deps.react) -->
-    <!-- inject!(deps.jquery) -->
-  </head>
-
-  <body>
-    <div id="root">
-
-    </div>
-
-    <!-- Note: Remove ".raw" to enable JSX support -->
-    <script src="inject!(editors.js.raw)"></script>
-    <!-- <script type="module" src="inject!(editors.js.raw)"></script> -->
-  </body>
-</html>
-`,
-    },
-    {
-      kind: 'Css',
-      version: 1,
-      contents: `html {
-  font-family: Arial, sans;
-  background: #23262e;
-  color: #d5ced9;
-}`,
-    },
-  ];
 }
 
 const MenuItem = styled.div`
@@ -76,7 +32,7 @@ function MainPage() {
     run: new EventType(),
     consoleMessage: new EventType(),
   }));
-  const session = React.useRef({ files: defaultFiles() });
+  const session = React.useRef(templates.get('default'));
   const rtab = url.query('rtab') === 'console' ? 'console' : 'frame';
   const urlSaveId = url.query('saved');
   const [submitCount, setSubmitCount] = React.useState(1);

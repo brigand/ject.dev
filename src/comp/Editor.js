@@ -163,6 +163,13 @@ function Editor(props) {
               const outCode = prettier.default.format(value, {
                 plugins: [plugin.default],
                 parser,
+                printWidth: 86,
+                tabWidth: 2,
+                singleQuote: true,
+                trailingComma: 'all',
+                bracketSpacing: true,
+                arrowParens: 'always',
+                proseWrap: 'always',
               });
               ed.getModel().setValue(outCode);
             },
