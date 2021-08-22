@@ -78,6 +78,23 @@ function extension(language) {
   }
 }
 
+function getPrettierOpts(language) {
+  switch (language) {
+    case 'javascript':
+      return ['babel', () => import('prettier/esm/parser-babel.mjs')];
+    case 'typescript':
+      return ['typescript', () => import('prettier/esm/parser-typescript.mjs')];
+    case 'css':
+      return ['css', () => import('prettier/esm/parser-postcss.mjs')];
+    case 'html':
+      return ['html', () => import('prettier/esm/parser-html.mjs')];
+    case 'json':
+      break;
+  }
+
+  return [];
+}
+
 function Editor(props) {
   const containerRef = React.useRef();
   const editorRef = React.useRef();
@@ -113,7 +130,7 @@ function Editor(props) {
     // Ref: https://microsoft.github.io/monaco-editor/playground.html#interacting-with-the-editor-adding-an-action-to-an-editor-instance
     // Ref: https://microsoft.github.io/monaco-editor/api/enums/monaco.keycode.html
     ed.addAction({
-      id: 'inject-save',
+      id: 'ject-save',
 
       // A label of the action that will be presented to the user.
       label: 'Save',
@@ -126,6 +143,33 @@ function Editor(props) {
         props.events.save.emit();
       },
     });
+
+    const [parser, loadPlugin] = getPrettierOpts(props.language);
+    if (parser) {
+      ed.addAction({
+        id: 'ject-format',
+
+        // A label of the action that will be presented to the user.
+        label: 'Format (prettier)',
+
+        // An optional array of keybindings for the action.
+        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_D],
+        contextMenuGroupId: 'custom',
+        contextMenuOrder: 10,
+        run: function () {
+          const value = ed.getModel().getValue();
+          Promise.all([import('prettier/esm/standalone.mjs'), loadPlugin()]).then(
+            ([prettier, plugin]) => {
+              const outCode = prettier.default.format(value, {
+                plugins: [plugin.default],
+                parser,
+              });
+              ed.getModel().setValue(outCode);
+            },
+          );
+        },
+      });
+    }
 
     ed.addAction({
       id: 'inject-run',
