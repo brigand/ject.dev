@@ -33,7 +33,7 @@ function MainPage(props) {
     consoleMessage: new EventType(),
   }));
   const session = React.useRef(templates.get(props.templateName) ?? templates.get());
-  const rtab = url.query('rtab') === 'console' ? 'console' : 'frame';
+  const resultTab = url.query('rt') === 'console' ? 'console' : 'frame';
   const urlSaveId = url.query('saved');
   const [submitCount, setSubmitCount] = React.useState(1);
 
@@ -71,7 +71,7 @@ function MainPage(props) {
   events.save.use(() => {
     console.log('Saving');
     api.save(session.current).then(({ save_id }) => {
-      url.withQuery('saved', save_id).applyByPush();
+      url.withQuery('saved', save_id).withPath('/').applyByPush();
     });
   });
 
@@ -208,10 +208,10 @@ function MainPage(props) {
           'Failed to create session'
         ) : createSession.value ? (
           <ResultsTabs
-            value={rtab}
+            value={resultTab}
             firstChild="frame"
             onChange={(value) => {
-              url.withQuery('rtab', value).applyByReplace();
+              url.withQuery('rt', value).applyByReplace();
             }}
           >
             <PageFrame
