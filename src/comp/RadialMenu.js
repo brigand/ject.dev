@@ -2,6 +2,7 @@ import React from 'react';
 import styled from '@emotion/styled';
 import pt from 'prop-types';
 import { arc } from 'd3-shape';
+import normal_120 from '../colors/normal-120.json';
 
 const MenuBox = styled.div`
   position: absolute;
@@ -46,6 +47,7 @@ const Label = styled.div`
   // background: rgba(255, 255, 255, 0.8);
 
   pointer-events: none;
+  color: ${(props) => props.color};
 `;
 
 const Button = styled.div`
@@ -132,11 +134,12 @@ function getItems(children, innerRadius, outerRadius, isOuter) {
     });
 
     return {
+      props: element.props,
       x,
       y,
       arcPath,
       element,
-      color: `hsl(${(180 / Math.PI) * startAngle}deg, 100%, 50%)`,
+      color: normal_120[Math.floor((i / children.length) * normal_120.length)],
       isOuter,
     };
   });
@@ -148,6 +151,13 @@ function RadialMenu(props) {
   const status = React.useRef(null);
   const [open, setOpen] = React.useState(false);
   const [secondary, setSecondary] = React.useState(null);
+
+  // Any time we close the menu, clear the secondary menu items
+  React.useEffect(() => {
+    if (!open && secondary) {
+      setSecondary(null);
+    }
+  }, [open]);
 
   const children = React.Children.toArray(props.children).filter(Boolean);
 
@@ -193,9 +203,10 @@ function RadialMenu(props) {
                   onMouseUp={() => {
                     if (status.current === `menu-${i}`) {
                       status.current = null;
-                      children[i].props?.onClick?.();
-                      if (children[i].props.secondary) {
-                        setSecondary(children[i].props.secondary);
+
+                      c.props?.onClick?.();
+                      if (c.props.secondary) {
+                        setSecondary(c.props.secondary);
                       } else {
                         setOpen(false);
                       }
@@ -213,6 +224,7 @@ function RadialMenu(props) {
               y={c.y}
               scale={(c.isOuter ? 1.4 : 0.6) / multiplier}
               multiplier={multiplier}
+              color={c.isOuter ? c.color : null}
             >
               {c.element}
             </Label>
