@@ -1,3 +1,9 @@
+export const baseCss = `html {
+  font-family: Arial, sans;
+  background: #23262e;
+  color: #d5ced9;
+}`;
+
 export const default$ = {
   files: [
     {
@@ -31,11 +37,7 @@ export const default$ = {
     },
     {
       kind: 'Css',
-      contents: `html {
-  font-family: Arial, sans;
-  background: #23262e;
-  color: #d5ced9;
-}`,
+      contents: baseCss,
     },
   ],
 };
