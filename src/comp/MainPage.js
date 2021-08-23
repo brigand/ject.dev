@@ -1,5 +1,5 @@
 import React from 'react';
-// import pt from 'prop-types';
+import pt from 'prop-types';
 import styled from '@emotion/styled';
 import Editor from './Editor';
 import QuadSplit from './QuadSplit';
@@ -24,7 +24,7 @@ const MenuItem = styled.div`
   font-size: 1.3em;
 `;
 
-function MainPage() {
+function MainPage(props) {
   const url = useUrl();
   const [events] = React.useState(() => ({
     resize: new EventType(),
@@ -32,7 +32,7 @@ function MainPage() {
     run: new EventType(),
     consoleMessage: new EventType(),
   }));
-  const session = React.useRef(templates.get('default'));
+  const session = React.useRef(templates.get(props.templateName) ?? templates.get());
   const rtab = url.query('rtab') === 'console' ? 'console' : 'frame';
   const urlSaveId = url.query('saved');
   const [submitCount, setSubmitCount] = React.useState(1);
@@ -87,6 +87,16 @@ function MainPage() {
     window,
   );
 
+  const renderNewItem = (name, key) => (
+    <MenuItem
+      onClick={() => {
+        window.open(`/new/${encodeURIComponent(key)}`);
+      }}
+    >
+      {name}
+    </MenuItem>
+  );
+
   const centerRadialMenu = React.useMemo(
     () => (
       <RadialMenu>
@@ -119,6 +129,15 @@ function MainPage() {
           onClick={() => console.log('TODO: prompt to add dependency')}
         >
           <span>+ Dep</span>
+        </MenuItem>
+        <MenuItem
+          style={{ color: 'var(--red)' }}
+          secondary={[
+            renderNewItem('Default', 'default'),
+            renderNewItem('React', 'react'),
+          ]}
+        >
+          <span>New</span>
         </MenuItem>
       </RadialMenu>
     ),
@@ -217,6 +236,8 @@ function MainPage() {
   );
 }
 
-MainPage.propTypes = {};
+MainPage.propTypes = {
+  templateName: pt.string,
+};
 
 export default MainPage;

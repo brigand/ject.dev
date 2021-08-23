@@ -1,6 +1,10 @@
 import { default$ } from './default';
+import { react } from './react';
 
-export const byName = new Map([['default', default$]]);
+export const byName = new Map([
+  ['default', default$],
+  ['react', react],
+]);
 
 export function clone({ files, ...rest }) {
   return {
@@ -10,5 +14,6 @@ export function clone({ files, ...rest }) {
 }
 
 export function get(name = 'default') {
-  return clone(byName.get(name));
+  const template = byName.get(name);
+  return template ? clone(template) : null;
 }

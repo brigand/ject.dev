@@ -26,7 +26,6 @@ use ov::*;
 
 use crate::db::Db;
 
-#[get("/")]
 async fn r_index() -> impl Responder {
     let html = r##"<!DOCTYPE html>
 <html>
@@ -116,7 +115,8 @@ async fn main() -> anyhow::Result<()> {
         let logger = Logger::default().exclude("/dist/");
         App::new()
             .wrap(logger)
-            .service(r_index)
+            .route("/", actix_web::web::get().to(r_index))
+            .route("/new/{templateName}", actix_web::web::get().to(r_index))
             .service(r_favicon)
             .over(|app| {
                 if env::is_production() {

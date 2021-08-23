@@ -6,6 +6,9 @@ export const react = {
       kind: 'JavaScript',
       contents: `function App() {
   const [state, setState] = React.useState(null);
+  return (
+    <div>Hello</div>
+  );
 }
 
 ReactDOM.render(<App />, document.getElementById('root'));`,

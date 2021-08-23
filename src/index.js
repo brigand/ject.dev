@@ -10,6 +10,12 @@ function App() {
   return (
     <Router>
       <Switch>
+        <Route
+          path="/new/:templateName"
+          render={({ match }) => (
+            <MainPage templateName={match.params.templateName} />
+          )}
+        />
         <Route component={MainPage} />
       </Switch>
     </Router>
