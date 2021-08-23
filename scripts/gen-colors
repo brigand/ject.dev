@@ -1,0 +1,47 @@
+#!/usr/bin/env node
+
+const fs = require('fs');
+const tinycolor = require('tinycolor2');
+
+function generateHues(base, count) {
+  const base_hsl = tinycolor(base).toHsl();
+  const desired_lum = tinycolor(base).getLuminance();
+  const hue_step = 360 / count;
+  return Array.from({ length: count }, (x, i) => {
+    const hue = (base_hsl.h + hue_step * i) % 360;
+
+    // Dumb brute-force search for matching luminance
+    let best = null;
+    let best_diff = 1;
+    Array.from({ length: 500 }, (_2, j) => {
+      const color = tinycolor({ h: Math.round(hue), s: base_hsl.s, l: j / 500 });
+      const diff = Math.abs(color.getLuminance() - desired_lum);
+      if (diff < best_diff) {
+        best = color;
+        best_diff = diff;
+      }
+    });
+
+    return best.toHexString();
+  });
+}
+
+function writeColors(name, hexes) {
+  fs.writeFileSync(`src/colors/${name}.json`, JSON.stringify(hexes, null, 2));
+  fs.writeFileSync(
+    `src/colors/${name}.html`,
+    hexes
+      .map(
+        (hex) =>
+          `<div style="width: 5em; height: 5em; display: inline-block; background: ${hex}"></div>`,
+      )
+      .join(''),
+  );
+}
+
+function generateAndWrite(name, base, count) {
+  const colors = generateHues(base, count);
+  writeColors(name, colors);
+}
+
+generateAndWrite('normal-120', '#FC644D', 120);
