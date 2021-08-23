@@ -34,7 +34,7 @@ export class UrlWrapper {
    */
   withPath(pathname) {
     const location = { ...this.#location, pathname };
-    return new UrlWrapper(location, this.#history);
+    return new UrlWrapper(location, this.#history, this.#params);
   }
 
   /**
