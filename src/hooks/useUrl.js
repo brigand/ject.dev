@@ -81,7 +81,7 @@ export class UrlWrapper {
    */
   buildLocation() {
     const search = this.#params.toString();
-    return { ...this.#location, search: '?' + search };
+    return { ...this.#location, search: search ? '?' + search : '' };
   }
 
   /**
