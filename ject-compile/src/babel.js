@@ -1,9 +1,11 @@
 const babel = require('@babel/core');
+const babelPluginSkypack = require('./babel-plugin-skypack');
 
 const makeOptions = ({ react = true, typescript = true }) => {
   return {
     filename: 'page.js',
     babelrc: false,
+    plugins: [babelPluginSkypack],
     presets: [
       react && [
         '@babel/preset-react',
