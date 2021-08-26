@@ -28,9 +28,7 @@ export const default$ = {
 
     </div>
 
-    <!-- Note: Remove ".raw" to enable JSX support -->
-    <script src="inject!(editors.js.raw)"></script>
-    <!-- <script type="module" src="inject!(editors.js.raw)"></script> -->
+    <script type="module" src="inject!(editors.js)"></script>
   </body>
 </html>
 `,
