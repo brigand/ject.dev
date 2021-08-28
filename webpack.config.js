@@ -26,6 +26,11 @@ module.exports = defineConfig((env, argv) => ({
     filename: '[name].bundle.js',
     path: path.resolve(__dirname, 'dist'),
   },
+  resolve: {
+    alias: {
+      path: require.resolve('path-browserify'),
+    },
+  },
   devServer: {
     // contentBase: './dist',
     compress: true,
