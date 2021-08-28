@@ -6,6 +6,7 @@ import styled from '@emotion/styled';
 import pt from 'prop-types';
 import andromeda from '../theme/andromeda-monaco.json';
 import { EventType } from '../EventType';
+import { AutoTypings } from 'monaco-editor-auto-typings';
 
 const Root = styled.div`
   height: 100%;
@@ -66,7 +67,7 @@ function extension(language) {
     case 'javascript':
       return 'jsx';
     case 'typescript':
-      return 'tsx';
+      return 'ts';
     case 'css':
       return 'css';
     case 'html':
@@ -110,7 +111,7 @@ function Editor(props) {
       model: monaco.editor.createModel(
         props.value.contents,
         props.language,
-        monaco.Uri.parse(`file:///your-code.${extension(props.language)}`),
+        // monaco.Uri.parse(`inmemory://src/index.${extension(props.language)}`),
       ),
       theme: 'andromeda',
       fontSize: 16,
@@ -126,6 +127,10 @@ function Editor(props) {
         bottom: 8,
       },
     });
+
+    if (props.language === 'javascript' || props.language === 'typescript') {
+      AutoTypings.create(ed, {});
+    }
 
     // Ref: https://microsoft.github.io/monaco-editor/playground.html#interacting-with-the-editor-adding-an-action-to-an-editor-instance
     // Ref: https://microsoft.github.io/monaco-editor/api/enums/monaco.keycode.html
