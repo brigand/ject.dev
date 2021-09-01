@@ -4,11 +4,14 @@ export const react = {
   files: [
     {
       kind: 'JavaScript',
-      contents: `function App() {
-  const [state, setState] = React.useState(null);
-  return (
-    <div>Hello</div>
-  );
+      contents: `import React from 'react';
+import ReactDOM from 'react-dom';
+
+function App() {
+    const [state, setState] = React.useState(null);
+    return (
+        <div>Hello</div>
+    );
 }
 
 ReactDOM.render(<App />, document.getElementById('root'));`,
@@ -22,7 +25,6 @@ ReactDOM.render(<App />, document.getElementById('root'));`,
     <link rel="stylesheet" href="inject!(editors.css.raw)" />
 
     inject!(console)
-    inject!(deps.react)
   </head>
 
   <body>

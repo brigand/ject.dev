@@ -19,8 +19,6 @@ export const default$ = {
     <link rel="stylesheet" href="inject!(editors.css.raw)" />
 
     inject!(console)
-    <!-- inject!(deps.react) -->
-    <!-- inject!(deps.jquery) -->
   </head>
 
   <body>
