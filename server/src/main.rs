@@ -36,16 +36,16 @@ async fn r_index() -> impl Responder {
             // Used by global-init.js
             window.PUBLIC_PATH = '/dist/';
         </script>
+        <script async defer src="/dist/app.bundle.js"></script>
 
         <link rel="apple-touch-icon" sizes="180x180" href="/dist/apple-touch-icon.png">
         <link rel="icon" type="image/png" sizes="32x32" href="/dist/favicon-32x32.png">
         <link rel="icon" type="image/png" sizes="16x16" href="/dist/favicon-16x16.png">
         <link rel="manifest" href="/dist/site.webmanifest">
         <link rel="mask-icon" href="/dist/safari-pinned-tab.svg" color="#ffe66d">
+        <link rel="stylesheet" href="/dist/app.css">
         <meta name="msapplication-TileColor" content="#ffe66d">
         <meta name="theme-color" content="#ffe66d">
-
-        <script defer src="/dist/app.bundle.js"></script>
     </head>
 
     <body>

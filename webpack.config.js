@@ -6,6 +6,11 @@ const CopyPlugin = require('copy-webpack-plugin');
 const { CleanWebpackPlugin } = require('clean-webpack-plugin');
 const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer');
 const MonacoWebpackPlugin = require('monaco-editor-webpack-plugin');
+const MiniCssExtractPlugin = require('mini-css-extract-plugin');
+
+const extra = {
+  enableBundlerAnalyzer: !!process.env.MEASURE,
+};
 
 module.exports = defineConfig((env, argv) => ({
   ...(() => {
@@ -24,6 +29,7 @@ module.exports = defineConfig((env, argv) => ({
   output: {
     globalObject: 'self',
     filename: '[name].bundle.js',
+    chunkFilename: '[name].[contenthash].chunk.js',
     path: path.resolve(__dirname, 'dist'),
   },
   resolve: {
@@ -51,11 +57,13 @@ module.exports = defineConfig((env, argv) => ({
         JECT_DOMAIN_FRAME: JSON.stringify('ject.link'),
       },
     }),
-    new BundleAnalyzerPlugin({
-      analyzerMode: env.WEBPACK_SERVE ? 'server' : 'static',
-      // analyzerMode: 'static',
-      openAnalyzer: false,
-    }),
+    extra.enableBundlerAnalyzer
+      ? new BundleAnalyzerPlugin({
+          analyzerMode: env.WEBPACK_SERVE ? 'server' : 'static',
+          // analyzerMode: 'static',
+          openAnalyzer: false,
+        })
+      : null,
     new MonacoWebpackPlugin({
       languages: [
         'css',
@@ -115,12 +123,20 @@ module.exports = defineConfig((env, argv) => ({
         'wordPartOperations',
       ],
     }),
-  ],
+    new MiniCssExtractPlugin({
+      // [name].css is the default filename
+      filename: '[name].css',
+      chunkFilename: '[name].[contenthash].chunk.css',
+    }),
+  ].filter(Boolean),
   module: {
     rules: [
       {
         test: /\.css$/,
-        use: ['style-loader', 'css-loader'],
+        use: [
+          argv.mode === 'production' ? MiniCssExtractPlugin.loader : 'style-loader',
+          'css-loader',
+        ],
       },
       {
         test: /\.ttf$/,
@@ -138,6 +154,9 @@ module.exports = defineConfig((env, argv) => ({
   },
 }));
 
+/**
+ * @param {(env: { WEBPACK_SERVE?: boolean }, argv: { port?: number, progress?: boolean, config?: string[] }) => object} factory
+ */
 function defineConfig(factory) {
   if (process.env.DEBUG_WEBPACK) {
     return (...args) => {
@@ -147,6 +166,6 @@ function defineConfig(factory) {
       return result;
     };
   } else {
-    return factory;
+    return (...args) => factory(...args);
   }
 }
