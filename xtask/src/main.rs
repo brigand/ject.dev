@@ -292,6 +292,9 @@ WantedBy=multi-user.target
 "#,
     );
 
+
+    let write_nginx_config = bash_write_file("/etc/nginx/sites-available/default", include_str!("nginx.conf"));
+
     let bash_commands = vec![
         // Create users
         "id -u ject >/dev/null 2>&1 || ( echo 'Creating group and user' ; groupadd ject ; useradd -g ject --home-dir /home/ject --shell /bin/bash ject )",
@@ -313,9 +316,13 @@ WantedBy=multi-user.target
         "chmod -R 600 /home/ject/app/letsencrypt/",
         &write_ject_systemd_file,
         &write_ject_compile_systemd,
+        &write_nginx_config,
+        "echo '## Checking nginx config'",
+        "nginx -t",
         "systemctl enable docker.ject-compile",
         "systemctl start docker.ject-compile",
         "systemctl daemon-reload",
+        "systemctl reload nginx",
         "echo 'All commands executed!'",
     ]
     .join(" && ");
