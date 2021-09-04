@@ -1,12 +1,11 @@
 import React from 'react';
 
 // import * as monaco from 'monaco-editor/esm/vs/editor/editor.main.js';
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import styled from '@emotion/styled';
 import pt from 'prop-types';
 import andromeda from '../theme/andromeda-monaco.json';
 import { EventType } from '../EventType';
-import { AutoTypings } from 'monaco-editor-auto-typings';
+import useMonaco from '../hooks/useMonaco';
 
 const Root = styled.div`
   height: 100%;
@@ -15,50 +14,6 @@ const Root = styled.div`
 const Inner = styled.div`
   height: 100%;
 `;
-
-// const join = (a, b) => a.replace(/[/]$/, '') + '/' + b.replace(/^\.?\// < '');
-// const pub = (path) => join(__webpack_public_path__, path);
-
-// https://github.com/microsoft/monaco-editor/issues/264#issuecomment-289911286
-monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
-  target: monaco.languages.typescript.ScriptTarget.ES2020,
-  allowNonTsExtensions: true,
-  moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
-  module: monaco.languages.typescript.ModuleKind.ES2020,
-  noEmit: true,
-  typeRoots: ['node_modules/@types'],
-  jsx: true,
-  jsxFactory: 'React.createElement',
-  allowJs: true,
-});
-
-monaco.languages.typescript.typescriptDefaults.addExtraLib(
-  require('!raw-loader!@types/react/index.d.ts').default,
-  'node_modules/@types/react/index.d.ts',
-);
-
-monaco.languages.typescript.typescriptDefaults.addExtraLib(
-  `
-declare var root: HTMLDivElement;
-  `.trim(),
-  'node_modules/@types/inject-client/index.d.ts',
-);
-
-monaco.languages.typescript.typescriptDefaults.addExtraLib(
-  require('!raw-loader!@types/react-dom/index.d.ts').default,
-  'node_modules/@types/react-dom/index.d.ts',
-);
-
-// monaco.languages.typescript.typescriptDefaults.addExtraLib(
-//   `declare var React: require('react');
-//   declare var ReactDOM: require('react-dom');`,
-//   'node_modules/@types/inject-global/index.d.ts',
-// );
-
-monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
-  noSemanticValidation: false,
-  noSyntaxValidation: false,
-});
 
 let registeredTheme = false;
 
@@ -99,6 +54,7 @@ function getPrettierOpts(language) {
 function Editor(props) {
   const containerRef = React.useRef();
   const editorRef = React.useRef();
+  const monaco = useMonaco();
 
   const init = () => {
     if (!registeredTheme) {
@@ -129,7 +85,7 @@ function Editor(props) {
     });
 
     if (props.language === 'javascript' || props.language === 'typescript') {
-      AutoTypings.create(ed, {});
+      monaco.AutoTypings.create(ed, {});
     }
 
     // Ref: https://microsoft.github.io/monaco-editor/playground.html#interacting-with-the-editor-adding-an-action-to-an-editor-instance
@@ -211,8 +167,11 @@ function Editor(props) {
   React.useEffect(() => {
     if (monaco) {
       init();
+      return () => {
+        editorRef.current = null;
+      };
     }
-  }, []);
+  }, [monaco]);
 
   return (
     <Root>
