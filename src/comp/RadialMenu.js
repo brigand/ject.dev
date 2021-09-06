@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import styled from '@emotion/styled';
 import pt from 'prop-types';
+import { useKey, useClickAway } from 'react-use';
 import { arc } from 'd3-shape';
 import normal_120 from '../colors/normal-120.json';
 
@@ -148,9 +149,18 @@ function getItems(children, innerRadius, outerRadius, isOuter) {
 }
 
 function RadialMenu(props) {
-  const status = React.useRef(null);
-  const [open, setOpen] = React.useState(false);
-  const [secondary, setSecondary] = React.useState(null);
+  const status = useRef(null);
+  const [open, setOpen] = useState(false);
+  const [secondary, setSecondary] = useState(null);
+  const root = useRef(null);
+
+  useClickAway(root, () => {
+    setOpen(false);
+  });
+
+  useKey('Escape', () => {
+    setOpen(false);
+  });
 
   // Any time we close the menu, clear the secondary menu items
   React.useEffect(() => {
@@ -184,7 +194,7 @@ function RadialMenu(props) {
   return (
     <>
       {open && (
-        <MenuBox size={`${multiplier * 20}em`}>
+        <MenuBox size={`${multiplier * 20}em`} ref={root}>
           <Menu viewBox={`0 0 ${svgSize} ${svgSize}`}>
             <g transform={`translate(${svgSize / 2}, ${svgSize / 2})`}>
               {items.map((c, i) => (
